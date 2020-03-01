@@ -1,11 +1,14 @@
 import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 
+
 const maxNumWorkers = cpus().length;
 const defaultNumWorkers = maxNumWorkers - 1;
+const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
 
 class WorkerPool {
   readonly #numWorkers: number;
+  private readonly _maxQueueSize: number;
 
   #initialized = false;
   #stopped = true;
@@ -21,6 +24,10 @@ class WorkerPool {
 
   get numWorkers() {
     return this.#numWorkers;
+  }
+
+  get maxQueueSize() {
+    return this._maxQueueSize;
   }
 
   get initialized() {
@@ -39,7 +46,7 @@ class WorkerPool {
     return this.#workerFunctions;
   }
 
-  constructor(options: { numWorkers?: number | 'max' } = {}) {
+  constructor(options: { numWorkers?: number | 'max', maxQueueSize?: number } = {}) {
     if (!options.numWorkers) {
       this.#numWorkers = defaultNumWorkers;
     }
@@ -55,6 +62,8 @@ class WorkerPool {
           : maxNumWorkers;
       }
     }
+
+    this._maxQueueSize = options.maxQueueSize ?? defaultMaxQueueSize;
   }
 
   add(name: string, func: (...args: any[]) => any) {
@@ -73,7 +82,6 @@ class WorkerPool {
     if (func.toString().includes('__$functions__')) {
       throw Error('\'__$functions__\' is a reserved word, please use a different variable name.');
     }
-
 
     this.#workerFunctions[name] = func;
 
@@ -225,7 +233,10 @@ class WorkerPool {
       const n = this._seq() as number;
       const value = args;
       this._callbacks.set(n, resolve);
-      this._queue.push({ n, name, value });
+
+      if (this._queue.length < this._maxQueueSize) {
+        this._queue.push({ n, name, value });
+      }
     });
   }
 
