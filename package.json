@@ -1,10 +1,11 @@
 {
-  "name": "worker-pool",
+  "name": "@tuft/worker-pool",
   "version": "1.0.0-alpha1",
-  "description": "Create and manage a pool of workers using Node.js worker threads.",
+  "description": "Create and manage a pool of workers in Node.js using worker threads.",
   "main": "lib/index.js",
   "scripts": {
     "test": "jest",
+    "test:coverage": "jest --coverage --coverageReporters=text-lcov | coveralls",
     "prebuild": "npm test",
     "build": "rm -rf ./lib && tsc"
   },
@@ -15,11 +16,15 @@
   "author": "Stuart Kennedy",
   "license": "MIT",
   "homepage": "https://github.com/tuftjs/worker-pool",
+  "bugs": {
+    "url": "https://github.com/tuftjs/worker-pool/issues"
+  },
   "devDependencies": {
     "@types/jest": "^25.1.3",
     "@types/node": "^13.7.4",
     "@typescript-eslint/eslint-plugin": "^2.21.0",
     "@typescript-eslint/parser": "^2.21.0",
+    "coveralls": "^3.0.9",
     "eslint": "^6.8.0",
     "jest": "^25.1.0",
     "ts-jest": "^25.2.1",

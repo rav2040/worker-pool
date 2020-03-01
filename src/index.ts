@@ -1,7 +1,6 @@
 import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 
-
 const maxNumWorkers = cpus().length;
 const defaultNumWorkers = maxNumWorkers - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
@@ -163,7 +162,7 @@ class WorkerPool {
         const jobs = this._queue.splice(0);
 
         if (jobs.length === 0) {
-          this._timeouts[n] = setTimeout(processJobs, 10);
+          this._timeouts[n] = setTimeout(processJobs, 0);
           return;
         }
 
