@@ -66,6 +66,15 @@ class WorkerPool {
       throw Error('The worker pool has been destroyed');
     }
 
+    if (func.toString().includes('__$parentPort__')) {
+      throw Error('\'__$parentPort__\' is a reserved word, please use a different variable name.');
+    }
+
+    if (func.toString().includes('__$functions__')) {
+      throw Error('\'__$functions__\' is a reserved word, please use a different variable name.');
+    }
+
+
     this.#workerFunctions[name] = func;
 
     return this;
@@ -80,9 +89,9 @@ class WorkerPool {
       throw Error('The worker pool has been destroyed.');
     }
 
-    let code = 'const { parentPort } = require(\'worker_threads\');';
+    let code = 'const { parentPort: __$parentPort__ } = require(\'worker_threads\');';
 
-    code += 'const funcs = {';
+    code += 'const __$functions__ = {';
 
     for (const [name, func] of Object.entries(this.#workerFunctions)) {
       code += `${name}: ${func},`;
@@ -91,16 +100,16 @@ class WorkerPool {
     code += '}';
 
     code += `
-      parentPort.on('message', async (jobs) => {
+      __$parentPort__.on('message', async (jobs) => {
         for (const job of jobs) {
-          const func = funcs[job.name];
+          const func = __$functions__[job.name];
           if (Array.isArray(job.value)) {
             job.value = await func(...job.value);
             continue;
           }
           job.value = func(job.value);
         }
-        parentPort.postMessage(jobs);
+        __$parentPort__.postMessage(jobs);
       });
     `;
 
@@ -202,6 +211,10 @@ class WorkerPool {
 
       else if (this.#destroyed) {
         err = Error('The worker pool has been destroyed.');
+      }
+
+      else if (!this.#workerFunctions[name]) {
+        err = Error(`A worker function with the name '${name}' does not exist in the worker pool.`);
       }
 
       if (err) {
