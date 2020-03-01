@@ -6,7 +6,6 @@ const defaultNumWorkers = maxNumWorkers - 1;
 
 class WorkerPool {
   readonly #numWorkers: number;
-  readonly #timeouts: NodeJS.Timeout[] = [];
 
   #initialized = false;
   #stopped = true;
@@ -16,6 +15,7 @@ class WorkerPool {
 
   private readonly _seq = createRepeatingSequence();
   private readonly _workers: Worker[] = [];
+  private readonly _timeouts: NodeJS.Timeout[] = [];
   private readonly _queue: { n: number, name: string, value: any }[] = [];
   private readonly _callbacks: Map<number, (value: any) => void> = new Map();
 
@@ -146,18 +146,18 @@ class WorkerPool {
         const jobs = this._queue.splice(0);
 
         if (jobs.length === 0) {
-          this.#timeouts[n] = setTimeout(processJobs, 10);
+          this._timeouts[n] = setTimeout(processJobs, 10);
           return;
         }
 
         worker.once('message', () => {
-          this.#timeouts[n] = setTimeout(processJobs, 0);
+          this._timeouts[n] = setTimeout(processJobs, 0);
         });
 
         worker.postMessage(jobs);
       };
 
-      this.#timeouts[n] = setTimeout(processJobs, 0);
+      this._timeouts[n] = setTimeout(processJobs, 0);
     }
 
     this.#stopped = false;
@@ -179,7 +179,7 @@ class WorkerPool {
     }
 
     for (const [n, worker] of this._workers.entries()) {
-      clearTimeout(this.#timeouts[n]);
+      clearTimeout(this._timeouts[n]);
       worker.unref();
     }
 
