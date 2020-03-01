@@ -16,6 +16,7 @@ let pool: WorkerPool = new WorkerPool();
 test('Create instance of WorkerPool', () => {
   pool = new WorkerPool();
   expect(pool).toBeInstanceOf(WorkerPool);
+  expect(pool.initialized).toEqual(false);
 });
 
 test('Add first test function', () => {
@@ -49,8 +50,9 @@ test('Call first test function expecting error', async () => {
 test('Initialise worker pool', () => {
   pool.init();
 
-  expect(pool.isStopped).toEqual(false);
-  expect(pool.isDestroyed).toEqual(false);
+  expect(pool.initialized).toEqual(true);
+  expect(pool.stopped).toEqual(false);
+  expect(pool.destroyed).toEqual(false);
 });
 
 test('Call first test function successfully', async () => {
@@ -72,8 +74,8 @@ test('Call first test function successfully', async () => {
 test('Stop worker pool', () => {
   pool.stop();
 
-  expect(pool.isStopped).toEqual(true);
-  expect(pool.isDestroyed).toEqual(false);
+  expect(pool.stopped).toEqual(true);
+  expect(pool.destroyed).toEqual(false);
 });
 
 test('Call second test function expecting error', async () => {
@@ -95,8 +97,8 @@ test('Call second test function expecting error', async () => {
 test('Start worker pool', () => {
   pool.start();
 
-  expect(pool.isStopped).toEqual(false);
-  expect(pool.isDestroyed).toEqual(false);
+  expect(pool.stopped).toEqual(false);
+  expect(pool.destroyed).toEqual(false);
 });
 
 test('Call second test function successfully', async () => {
@@ -118,6 +120,6 @@ test('Call second test function successfully', async () => {
 test('Destroy worker pool', async () => {
   await pool.destroy();
 
-  expect(pool.isStopped).toEqual(true);
-  expect(pool.isDestroyed).toEqual(true);
+  expect(pool.stopped).toEqual(true);
+  expect(pool.destroyed).toEqual(true);
 });
