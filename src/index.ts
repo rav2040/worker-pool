@@ -224,6 +224,10 @@ class WorkerPool {
         err = Error(`A worker function with the name '${name}' does not exist in the worker pool.`);
       }
 
+      else if (this._queue.length >= this._maxQueueSize) {
+        err = Error(`Max job queue size has been reached: ${this._maxQueueSize} jobs`);
+      }
+
       if (err) {
         reject(err);
         return;
@@ -231,11 +235,9 @@ class WorkerPool {
 
       const n = this._seq() as number;
       const value = args;
-      this._callbacks.set(n, resolve);
 
-      if (this._queue.length < this._maxQueueSize) {
-        this._queue.push({ n, name, value });
-      }
+      this._callbacks.set(n, resolve);
+      this._queue.push({ n, name, value });
     });
   }
 
