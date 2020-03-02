@@ -282,7 +282,7 @@ describe('Executing a function', () => {
     await pool.destroy();
   });
 
-  test('10,000 times (1000 jobs per worker)', async () => {
+  test('successfully 10,000 times (1000 jobs per worker)', async () => {
     const expectedResult: string[] = [];
 
     for (let i = 0; i < 10_000; i++) {
