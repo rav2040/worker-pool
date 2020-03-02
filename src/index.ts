@@ -2,19 +2,25 @@ import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 import { createRepeatingSequence } from './sequence';
 
+const DEFAULT_INITIALIZED = false;
+const DEFAULT_STOPPED = true;
+const DEFAULT_DESTROYED = false;
+
 const maxNumWorkers = cpus().length;
 const defaultNumWorkers = maxNumWorkers - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
+const defaultMaxJobs = Number.MAX_SAFE_INTEGER;
 
 class WorkerPool {
-  readonly #numWorkers: number;
-  private readonly _maxQueueSize: number;
-
-  #initialized = false;
-  #stopped = true;
-  #destroyed = false;
+  #initialized = DEFAULT_INITIALIZED;
+  #stopped = DEFAULT_STOPPED;
+  #destroyed = DEFAULT_DESTROYED;
 
   #workerFunctions: { [name: string]: (...args: any[]) => any } = {};
+
+  private readonly _numWorkers: number;
+  private readonly _maxQueueSize: number;
+  private readonly _maxJobsPerWorker: number;
 
   private readonly _seq = createRepeatingSequence();
   private readonly _workers: Worker[] = [];
@@ -23,11 +29,15 @@ class WorkerPool {
   private readonly _callbacks: Map<number, (value: any) => void> = new Map();
 
   get numWorkers() {
-    return this.#numWorkers;
+    return this._numWorkers;
   }
 
   get maxQueueSize() {
     return this._maxQueueSize;
+  }
+
+  get maxJobsPerWorker() {
+    return this._maxJobsPerWorker;
   }
 
   get initialized() {
@@ -46,24 +56,25 @@ class WorkerPool {
     return this.#workerFunctions;
   }
 
-  constructor(options: { numWorkers?: number | 'max', maxQueueSize?: number } = {}) {
+  constructor(options: { numWorkers?: number | 'max', maxQueueSize?: number, maxJobsPerWorker?: number } = {}) {
     if (!options.numWorkers) {
-      this.#numWorkers = defaultNumWorkers;
+      this._numWorkers = defaultNumWorkers;
     }
 
     else {
       if (options.numWorkers === 'max') {
-        this.#numWorkers = maxNumWorkers;
+        this._numWorkers = maxNumWorkers;
       }
 
       else {
-        this.#numWorkers = options.numWorkers <= maxNumWorkers
+        this._numWorkers = options.numWorkers <= maxNumWorkers
           ? options.numWorkers
           : maxNumWorkers;
       }
     }
 
     this._maxQueueSize = options.maxQueueSize ?? defaultMaxQueueSize;
+    this._maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobs;
   }
 
   add(name: string, func: (...args: any[]) => any) {
@@ -121,7 +132,7 @@ class WorkerPool {
       });
     `;
 
-    for (let i = 0; i < this.#numWorkers; i++) {
+    for (let i = 0; i < this._numWorkers; i++) {
       const worker = new Worker(code, { eval: true });
 
       worker.on('message', (results) => {
@@ -159,7 +170,7 @@ class WorkerPool {
       worker.ref();
 
       const processJobs = () => {
-        const jobs = this._queue.splice(0);
+        const jobs = this._queue.splice(0, this._maxJobsPerWorker);
 
         if (jobs.length === 0) {
           this._timeouts[n] = setTimeout(processJobs, 0);
