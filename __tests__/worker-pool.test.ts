@@ -1,6 +1,7 @@
 import { cpus } from 'os';
 import { WorkerPool } from '../src/index';
 
+
 function test_reserved0() {
   const __$parentPort__ = 42;
   return __$parentPort__;
@@ -20,6 +21,10 @@ function test_promise() {
   return new Promise((resolve) => {
     setTimeout(() => resolve(42), 10);
   });
+}
+
+function test_jsonStringify(obj: object) {
+  return JSON.stringify(obj);
 }
 
 describe('Successfully creating an instance of WorkerPool with', () => {
@@ -58,6 +63,12 @@ describe('Successfully creating an instance of WorkerPool with', () => {
     const pool = new WorkerPool({ maxQueueSize: 100 });
 
     expect(pool.maxQueueSize).toEqual(100);
+  });
+
+  test('maxJobsPerWorker set to 100', () => {
+    const pool = new WorkerPool({ maxJobsPerWorker: 100 });
+
+    expect(pool.maxJobsPerWorker).toEqual(100);
   });
 });
 
@@ -257,6 +268,35 @@ describe('Executing a function', () => {
     const promise = pool.exec('test_product', 1, 2, 3);
 
     await expect(promise).rejects.toThrowError('The worker pool has been destroyed.');
+  });
+});
+
+describe('Executing a function', () => {
+  const pool = new WorkerPool({ maxJobsPerWorker: 1000 });
+
+  pool
+    .add('test_jsonStringify', test_jsonStringify)
+    .init();
+
+  afterAll(async () => {
+    await pool.destroy();
+  });
+
+  test('10,000 times (1000 jobs per worker)', async () => {
+    const expectedResult: string[] = [];
+
+    for (let i = 0; i < 10_000; i++) {
+      expectedResult.push(JSON.stringify({ foo: 42 }));
+    }
+
+    const promises: Promise<string>[] = [];
+
+    for (let i = 0; i < 10_000; i++) {
+      const promise = pool.exec('test_jsonStringify', { foo: 42 });
+      promises.push(promise);
+    }
+
+    await expect(Promise.all(promises)).resolves.toEqual(expectedResult);
   });
 });
 
