@@ -1,5 +1,6 @@
 import { Worker } from 'worker_threads';
 import { cpus } from 'os';
+import { createRepeatingSequence } from './sequence';
 
 const maxNumWorkers = cpus().length;
 const defaultNumWorkers = maxNumWorkers - 1;
@@ -126,9 +127,8 @@ class WorkerPool {
       worker.on('message', (results) => {
         for (const { n, value } of results) {
           const callback = this._callbacks.get(n);
-          callback?.(value);
+          callback!(value);
           this._callbacks.delete(n);
-
         }
       });
 
@@ -143,16 +143,16 @@ class WorkerPool {
   }
 
   start() {
-    if (!this.#stopped) {
-      return;
-    }
-
     if (!this.#initialized) {
       throw Error('The worker pool has not been initialized.');
     }
 
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed.');
+    }
+
+    if (!this.#stopped) {
+      return;
     }
 
     for (const [n, worker] of this._workers.entries()) {
@@ -182,16 +182,16 @@ class WorkerPool {
   }
 
   stop() {
-    if (this.#stopped) {
-      return;
-    }
-
     if (!this.#initialized) {
       throw Error('The worker pool has not been initialized.');
     }
 
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed.');
+    }
+
+    if (this.#stopped) {
+      return;
     }
 
     for (const [n, worker] of this._workers.entries()) {
@@ -208,16 +208,16 @@ class WorkerPool {
     return new Promise<any>((resolve, reject) => {
       let err: Error | undefined;
 
-      if (this.#stopped) {
-        err = Error('The worker pool is stopped.');
-      }
-
-      else if (!this.#initialized) {
+      if (!this.#initialized) {
         err = Error('The worker pool has not been initialized.');
       }
 
       else if (this.#destroyed) {
         err = Error('The worker pool has been destroyed.');
+      }
+
+      else if (this.#stopped) {
+        err = Error('The worker pool is stopped.');
       }
 
       else if (!this.#workerFunctions[name]) {
@@ -267,16 +267,6 @@ class WorkerPool {
       });
     });
   }
-}
-
-function createRepeatingSequence(start = 0, end = Number.MAX_SAFE_INTEGER) {
-  let n = start;
-
-  return () => {
-    const value = n;
-    n = n < end ? n + 1 : 0;
-    return value;
-  };
 }
 
 export { WorkerPool };
