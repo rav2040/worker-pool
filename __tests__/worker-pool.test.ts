@@ -193,7 +193,27 @@ describe('Executing a function', () => {
 });
 
 describe('Executing a function', () => {
-  const pool = new WorkerPool();
+  const pool = new WorkerPool({ numWorkers: 1, maxQueueSize: 1 });
+
+  pool
+    .add('test_product', test_product)
+    .init();
+
+  afterAll(async () => {
+    await pool.destroy();
+  });
+
+  test('when job queue is full throws an error', async () => {
+    pool.exec('test_product', 1, 2, 3);
+
+    const promise = pool.exec('test_product', 1, 2, 3);
+
+    await expect(promise).rejects.toThrowError('Max job queue size has been reached: 1 jobs');
+  });
+});
+
+describe('Executing a function', () => {
+  const pool = new WorkerPool({});
 
   pool
     .add('test_product', test_product)
