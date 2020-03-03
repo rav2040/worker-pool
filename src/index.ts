@@ -6,6 +6,9 @@ const DEFAULT_INITIALIZED = false;
 const DEFAULT_STOPPED = true;
 const DEFAULT_DESTROYED = false;
 
+const DEFAULT_PARENT_PORT_STRING = '__parentPort';
+const DEFAULT_LISTENERS_STRING = '__listeners';
+
 const maxNumWorkers = cpus().length;
 const defaultNumWorkers = maxNumWorkers - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
@@ -78,20 +81,12 @@ class WorkerPool {
   }
 
   add(name: string, func: (...args: any[]) => any) {
-    if (this.#initialized) {
-      throw Error('The worker pool has already been initialized.');
-    }
-
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed');
     }
 
-    if (func.toString().includes('__$parentPort__')) {
-      throw Error('\'__$parentPort__\' is a reserved word, please use a different variable name.');
-    }
-
-    if (func.toString().includes('__$functions__')) {
-      throw Error('\'__$functions__\' is a reserved word, please use a different variable name.');
+    if (this.#initialized) {
+      throw Error('The worker pool has already been initialized.');
     }
 
     this.#workerFunctions[name] = func;
@@ -100,17 +95,33 @@ class WorkerPool {
   }
 
   init() {
-    if (this.#initialized) {
-      throw Error('The worker pool has already been initialized.');
-    }
-
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed.');
     }
 
-    let code = 'const { parentPort: __$parentPort__ } = require(\'worker_threads\');';
+    if (this.#initialized) {
+      throw Error('The worker pool has already been initialized.');
+    }
 
-    code += 'const __$functions__ = {';
+    let parentPort = DEFAULT_PARENT_PORT_STRING;
+    let listeners = DEFAULT_LISTENERS_STRING;
+
+    const listenersAsStringArray = Object.values(this.#workerFunctions)
+      .map((listener) => listener.toString());
+
+    const listenersAsString = ''.concat(...listenersAsStringArray);
+
+    while (listenersAsString.includes(parentPort)) {
+      parentPort = '_' + parentPort;
+    }
+
+    while (listenersAsString.includes(listeners)) {
+      listeners = '_' + listeners;
+    }
+
+    let code = `const { parentPort: ${parentPort} } = require('worker_threads');`;
+
+    code += `const ${listeners} = {`;
 
     for (const [name, func] of Object.entries(this.#workerFunctions)) {
       code += `${name}: ${func},`;
@@ -119,16 +130,16 @@ class WorkerPool {
     code += '}';
 
     code += `
-      __$parentPort__.on('message', async (jobs) => {
+      ${parentPort}.on('message', async (jobs) => {
         for (const job of jobs) {
-          const func = __$functions__[job.name];
+          const listener = ${listeners}[job.name];
           if (Array.isArray(job.value)) {
-            job.value = await func(...job.value);
+            job.value = await listener(...job.value);
             continue;
           }
-          job.value = func(job.value);
+          job.value = await listener(job.value);
         }
-        __$parentPort__.postMessage(jobs);
+        ${parentPort}.postMessage(jobs);
       });
     `;
 
@@ -154,12 +165,12 @@ class WorkerPool {
   }
 
   start() {
-    if (!this.#initialized) {
-      throw Error('The worker pool has not been initialized.');
-    }
-
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed.');
+    }
+
+    if (!this.#initialized) {
+      throw Error('The worker pool has not been initialized.');
     }
 
     if (!this.#stopped) {
@@ -193,12 +204,12 @@ class WorkerPool {
   }
 
   stop() {
-    if (!this.#initialized) {
-      throw Error('The worker pool has not been initialized.');
-    }
-
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed.');
+    }
+
+    if (!this.#initialized) {
+      throw Error('The worker pool has not been initialized.');
     }
 
     if (this.#stopped) {
@@ -219,12 +230,12 @@ class WorkerPool {
     return new Promise<any>((resolve, reject) => {
       let err: Error | undefined;
 
-      if (!this.#initialized) {
-        err = Error('The worker pool has not been initialized.');
+      if (this.#destroyed) {
+        err = Error('The worker pool has been destroyed.');
       }
 
-      else if (this.#destroyed) {
-        err = Error('The worker pool has been destroyed.');
+      else if (!this.#initialized) {
+        err = Error('The worker pool has not been initialized.');
       }
 
       else if (this.#stopped) {
