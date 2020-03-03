@@ -2,12 +2,15 @@ import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 import { createRepeatingSequence } from './sequence';
 
+type WorkerListener = (...args: any[]) => any;
+
 const DEFAULT_INITIALIZED = false;
 const DEFAULT_STOPPED = true;
 const DEFAULT_DESTROYED = false;
 
 const DEFAULT_PARENT_PORT_STRING = '__parentPort';
 const DEFAULT_LISTENERS_STRING = '__listeners';
+const DEFAULT_FACTORIES_STRING = '__factoryFunctions';
 
 const maxNumWorkers = cpus().length;
 const defaultNumWorkers = maxNumWorkers - 1;
@@ -19,7 +22,7 @@ class WorkerPool {
   #stopped = DEFAULT_STOPPED;
   #destroyed = DEFAULT_DESTROYED;
 
-  #workerFunctions: { [name: string]: (...args: any[]) => any } = {};
+  #workerFactoryFunctions: { [name: string]: () => WorkerListener | Promise<WorkerListener> } = {};
 
   private readonly _numWorkers: number;
   private readonly _maxQueueSize: number;
@@ -30,18 +33,6 @@ class WorkerPool {
   private readonly _timeouts: NodeJS.Timeout[] = [];
   private readonly _queue: { n: number, name: string, value: any }[] = [];
   private readonly _callbacks: Map<number, (value: any) => void> = new Map();
-
-  get numWorkers() {
-    return this._numWorkers;
-  }
-
-  get maxQueueSize() {
-    return this._maxQueueSize;
-  }
-
-  get maxJobsPerWorker() {
-    return this._maxJobsPerWorker;
-  }
 
   get initialized() {
     return this.#initialized;
@@ -55,8 +46,20 @@ class WorkerPool {
     return this.#destroyed;
   }
 
-  get workerFunctions() {
-    return this.#workerFunctions;
+  get workerFactoryFunctions() {
+    return this.#workerFactoryFunctions;
+  }
+
+  get numWorkers() {
+    return this._numWorkers;
+  }
+
+  get maxQueueSize() {
+    return this._maxQueueSize;
+  }
+
+  get maxJobsPerWorker() {
+    return this._maxJobsPerWorker;
   }
 
   constructor(options: { numWorkers?: number | 'max', maxQueueSize?: number, maxJobsPerWorker?: number } = {}) {
@@ -80,7 +83,7 @@ class WorkerPool {
     this._maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobs;
   }
 
-  add(name: string, func: (...args: any[]) => any) {
+  add(name: string, factoryFn: () => WorkerListener | Promise<WorkerListener>) {
     if (this.#destroyed) {
       throw Error('The worker pool has been destroyed');
     }
@@ -89,7 +92,7 @@ class WorkerPool {
       throw Error('The worker pool has already been initialized.');
     }
 
-    this.#workerFunctions[name] = func;
+    this.#workerFactoryFunctions[name] = factoryFn;
 
     return this;
   }
@@ -105,8 +108,9 @@ class WorkerPool {
 
     let parentPort = DEFAULT_PARENT_PORT_STRING;
     let listeners = DEFAULT_LISTENERS_STRING;
+    let factories = DEFAULT_FACTORIES_STRING;
 
-    const listenersAsStringArray = Object.values(this.#workerFunctions)
+    const listenersAsStringArray = Object.values(this.#workerFactoryFunctions)
       .map((listener) => listener.toString());
 
     const listenersAsString = ''.concat(...listenersAsStringArray);
@@ -119,15 +123,29 @@ class WorkerPool {
       listeners = '_' + listeners;
     }
 
-    let code = `const { parentPort: ${parentPort} } = require('worker_threads');`;
-
-    code += `const ${listeners} = {`;
-
-    for (const [name, func] of Object.entries(this.#workerFunctions)) {
-      code += `${name}: ${func},`;
+    while (listenersAsString.includes(factories)) {
+      factories = '_' + factories;
     }
 
-    code += '}';
+    let code = `const { parentPort: ${parentPort} } = require('worker_threads');`;
+
+    code += 'async function init() {';
+
+    code += `const ${listeners} = {};`;
+
+    code += `const ${factories} = [`;
+
+    for (const [name, factory] of Object.entries(this.#workerFactoryFunctions)) {
+      code += `{ name: '${name}', factory: ${factory} },`;
+    }
+
+    code += '];';
+
+    code += `
+      for (const { name, factory } of ${factories}) {
+        ${listeners}[name] = await factory();
+      }
+    `;
 
     code += `
       ${parentPort}.on('message', async (jobs) => {
@@ -142,6 +160,10 @@ class WorkerPool {
         ${parentPort}.postMessage(jobs);
       });
     `;
+
+    code += '}';
+
+    code += 'init();';
 
     for (let i = 0; i < this._numWorkers; i++) {
       const worker = new Worker(code, { eval: true });
@@ -242,7 +264,7 @@ class WorkerPool {
         err = Error('The worker pool is stopped.');
       }
 
-      else if (!this.#workerFunctions[name]) {
+      else if (!this.#workerFactoryFunctions[name]) {
         err = Error(`A worker function with the name '${name}' does not exist in the worker pool.`);
       }
 
