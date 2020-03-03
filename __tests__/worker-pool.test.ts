@@ -1,30 +1,52 @@
 import { cpus } from 'os';
 import { WorkerPool } from '../src/index';
 
-
-function test_reserved0() {
+function reservedVars__parentPort() {
   //@ts-ignore
-  return __parentPort;
+  return () => __parentPort;
 }
 
-function test_reserved1() {
+function reservedVars__listeners() {
   //@ts-ignore
-  return __listeners;
+  return () => __listeners;
 }
 
-function test_product(...args: number[]) {
-  const result = args.reduce((a, b) => a * b);
-  return result;
+function reservedVars__factoryFunctions() {
+  //@ts-ignore
+  return () => __factoryFunctions;
 }
 
-function test_promise() {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(42), 10);
-  });
+function product() {
+  return (...args: number[]) => args.reduce((a, b) => a * b);
 }
 
-function test_jsonStringify(obj: object) {
-  return JSON.stringify(obj);
+function usePromise() {
+  return () => {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(42), 10);
+    });
+  };
+}
+
+function jsonStringify() {
+  return (obj: object) => JSON.stringify(obj);
+}
+
+function stringConcat() {
+  const foo = 'foo';
+
+  return (str: string) => {
+    return foo + str;
+  };
+}
+
+async function dynamicImport() {
+  const url = await import('url');
+
+  return (path: string) => {
+    const { query } = url.parse('http://example.com' + path);
+    return query;
+  };
 }
 
 describe('Successfully creating an instance of WorkerPool with', () => {
@@ -80,17 +102,17 @@ describe('Adding a function', () => {
   });
 
   function addFunction () {
-    pool.add('test_product', test_product);
+    pool.add('product', product);
   }
 
   test('successfully', () => {
-    pool.add('test_product', test_product);
-    expect(pool.workerFunctions['test_product']).toBe(test_product);
+    pool.add('product', product);
+    expect(pool.workerFactoryFunctions['product']).toBe(product);
   });
 
   test('successfully (async function)', () => {
-    pool.add('test_promise', test_promise);
-    expect(pool.workerFunctions['test_promise']).toBe(test_promise);
+    pool.add('usePromise', usePromise);
+    expect(pool.workerFactoryFunctions['usePromise']).toBe(usePromise);
   });
 
   test('after worker pool is initialised throws an error', () => {
@@ -106,12 +128,13 @@ describe('Adding a function', () => {
     await pool.destroy();
 
     function addFunction () {
-      pool.add('test_product', test_product);
+      pool.add('product', product);
     }
 
     expect(addFunction).toThrowError('The worker pool has been destroyed');
   });
 });
+
 
 describe('Initialising a worker pool', () => {
   const pool = new WorkerPool();
@@ -136,7 +159,7 @@ describe('Initialising a worker pool', () => {
 describe('Initialising a worker pool', () => {
   const pool = new WorkerPool();
 
-  pool.add('test_reserved0', test_reserved0);
+  pool.add('reservedVars__parentPort', reservedVars__parentPort);
 
   afterAll(async () => {
     await pool.destroy();
@@ -151,7 +174,7 @@ describe('Initialising a worker pool', () => {
 describe('Initialising a worker pool', () => {
   const pool = new WorkerPool();
 
-  pool.add('test_reserved1', test_reserved1);
+  pool.add('reservedVars__listeners', reservedVars__listeners);
 
   afterAll(async () => {
     await pool.destroy();
@@ -161,6 +184,23 @@ describe('Initialising a worker pool', () => {
     pool.init();
     expect(pool.initialized).toEqual(true);
   });
+});
+
+describe('Initialising a worker pool', () => {
+  const pool = new WorkerPool();
+
+  pool.add('reservedVars__factoryFunctions', reservedVars__factoryFunctions);
+
+  afterAll(async () => {
+    await pool.destroy();
+  });
+
+  test('successfully when one of the added functions attempts to access the variable \'__factoryFunctions\'',
+    async () => {
+      pool.init();
+      expect(pool.initialized).toEqual(true);
+    }
+  );
 });
 
 describe('Initialising a worker pool', () => {
@@ -220,7 +260,7 @@ describe('Executing a function', () => {
   const pool = new WorkerPool({ numWorkers: 1, maxQueueSize: 1 });
 
   pool
-    .add('test_product', test_product)
+    .add('product', product)
     .init();
 
   afterAll(async () => {
@@ -228,9 +268,9 @@ describe('Executing a function', () => {
   });
 
   test('when job queue is full throws an error', async () => {
-    pool.exec('test_product', 1, 2, 3);
+    pool.exec('product', 1, 2, 3);
 
-    const promise = pool.exec('test_product', 1, 2, 3);
+    const promise = pool.exec('product', 1, 2, 3);
 
     await expect(promise).rejects.toThrowError('Max job queue size has been reached: 1 jobs');
   });
@@ -240,8 +280,8 @@ describe('Executing a function', () => {
   const pool = new WorkerPool({});
 
   pool
-    .add('test_product', test_product)
-    .add('test_promise', test_promise)
+    .add('product', product)
+    .add('usePromise', usePromise)
     .init();
 
   afterAll(async () => {
@@ -249,17 +289,17 @@ describe('Executing a function', () => {
   });
 
   test('successfully', async () => {
-    const promise = pool.exec('test_product', 1, 2, 3);
+    const promise = pool.exec('product', 1, 2, 3);
     await expect(promise).resolves.toEqual(6);
   });
 
   test('successfully (async function)', async () => {
-    const promise = pool.exec('test_promise');
+    const promise = pool.exec('usePromise');
     await expect(promise).resolves.toEqual(42);
   });
 
   test('that doesn\'t exist throws an error', async () => {
-    const functionName = 'test_noexist';
+    const functionName = 'noexist';
     const promise = pool.exec(functionName);
 
     await expect(promise)
@@ -270,7 +310,7 @@ describe('Executing a function', () => {
   test('while the worker pool is stopped throws an error', async () => {
     pool.stop();
 
-    const promise = pool.exec('test_product', 1, 2, 3);
+    const promise = pool.exec('product', 1, 2, 3);
 
     await expect(promise).rejects.toThrowError('The worker pool is stopped.');
   });
@@ -278,7 +318,7 @@ describe('Executing a function', () => {
   test('after the worker pool is destroyed throws an error', async () => {
     await pool.destroy();
 
-    const promise = pool.exec('test_product', 1, 2, 3);
+    const promise = pool.exec('product', 1, 2, 3);
 
     await expect(promise).rejects.toThrowError('The worker pool has been destroyed.');
   });
@@ -288,7 +328,7 @@ describe('Executing a function', () => {
   const pool = new WorkerPool({ maxJobsPerWorker: 1000 });
 
   pool
-    .add('test_jsonStringify', test_jsonStringify)
+    .add('jsonStringify', jsonStringify)
     .init();
 
   afterAll(async () => {
@@ -305,11 +345,35 @@ describe('Executing a function', () => {
     const promises: Promise<string>[] = [];
 
     for (let i = 0; i < 10_000; i++) {
-      const promise = pool.exec('test_jsonStringify', { foo: 42 });
+      const promise = pool.exec('jsonStringify', { foo: 42 });
       promises.push(promise);
     }
 
     await expect(Promise.all(promises)).resolves.toEqual(expectedResult);
+  });
+});
+
+
+describe('Executing a function using scoped variables from a factory function', () => {
+  const pool = new WorkerPool({});
+
+  pool
+    .add('stringConcat', stringConcat)
+    .add('dynamicImport', dynamicImport)
+    .init();
+
+  afterAll(async () => {
+    await pool.destroy();
+  });
+
+  test('successfully', async () => {
+    const promise = pool.exec('stringConcat', 'bar');
+    await expect(promise).resolves.toEqual('foobar');
+  });
+
+  test('successfully with dynamic import', async () => {
+    const promise = pool.exec('dynamicImport', '/somepath?foo=42');
+    await expect(promise).resolves.toEqual('foo=42');
   });
 });
 
