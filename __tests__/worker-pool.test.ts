@@ -3,13 +3,13 @@ import { WorkerPool } from '../src/index';
 
 
 function test_reserved0() {
-  const __$parentPort__ = 42;
-  return __$parentPort__;
+  //@ts-ignore
+  return __parentPort;
 }
 
 function test_reserved1() {
-  const __$functions__ = 42;
-  return __$functions__;
+  //@ts-ignore
+  return __listeners;
 }
 
 function test_product(...args: number[]) {
@@ -79,14 +79,6 @@ describe('Adding a function', () => {
     await pool.destroy();
   });
 
-  function addFunctionOne () {
-    pool.add('test_reserved0', test_reserved0);
-  }
-
-  function addFunctionTwo () {
-    pool.add('test_reserved1', test_reserved1);
-  }
-
   function addFunction () {
     pool.add('test_product', test_product);
   }
@@ -99,14 +91,6 @@ describe('Adding a function', () => {
   test('successfully (async function)', () => {
     pool.add('test_promise', test_promise);
     expect(pool.workerFunctions['test_promise']).toBe(test_promise);
-  });
-
-  test('using reserved words throws an error', () => {
-    expect(addFunctionOne)
-      .toThrowError('\'__$parentPort__\' is a reserved word, please use a different variable name.');
-
-    expect(addFunctionTwo)
-      .toThrowError('\'__$functions__\' is a reserved word, please use a different variable name.');
   });
 
   test('after worker pool is initialised throws an error', () => {
@@ -147,7 +131,36 @@ describe('Initialising a worker pool', () => {
   test('a second time throws an error', () => {
     expect(() => pool.init()).toThrowError('The worker pool has already been initialized.');
   });
+});
 
+describe('Initialising a worker pool', () => {
+  const pool = new WorkerPool();
+
+  pool.add('test_reserved0', test_reserved0);
+
+  afterAll(async () => {
+    await pool.destroy();
+  });
+
+  test('successfully when one of the added functions attempts to access the variable \'__parentPort\'', async () => {
+    pool.init();
+    expect(pool.initialized).toEqual(true);
+  });
+});
+
+describe('Initialising a worker pool', () => {
+  const pool = new WorkerPool();
+
+  pool.add('test_reserved1', test_reserved1);
+
+  afterAll(async () => {
+    await pool.destroy();
+  });
+
+  test('successfully when one of the added functions attempts to access the variable \'__listeners\'', async () => {
+    pool.init();
+    expect(pool.initialized).toEqual(true);
+  });
 });
 
 describe('Initialising a worker pool', () => {
