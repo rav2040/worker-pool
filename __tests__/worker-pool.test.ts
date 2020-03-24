@@ -192,16 +192,25 @@ describe('Executing multiple tasks', () => {
 });
 
 describe('Executing multiple tasks', () => {
-  const pool = new WorkerPool(FILENAME);
+  const maxQueueSize = 10;
+  const pool = new WorkerPool(FILENAME, { maxQueueSize });
   let promise: Promise<number>;
 
   afterAll(async () => await pool.destroy());
 
-  test ('is successful when number of tasks is over 10,000', async () => {
-    for (let i = 0; i < 10002; i++) {
+  test ('is successful when number of tasks equals maxQueueSize', async () => {
+    for (let i = 0; i < maxQueueSize; i++) {
       promise = pool.exec('add', 2, 4);
     }
 
     await expect(promise).resolves.toBe(6);
+  });
+
+  test ('throws an error when number of tasks exceeds maxQueueSize', async () => {
+    for (let i = 0; i < maxQueueSize + 1; i++) {
+      promise = pool.exec('add', 2, 4);
+    }
+
+    await expect(promise).rejects.toThrow('Max job queue size has been reached: 10 jobs');
   });
 });
