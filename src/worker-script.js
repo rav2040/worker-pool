@@ -22,10 +22,7 @@ if (!isMainThread) {
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i];
       const callListener = listeners[job.name];
-
-      job.value = Array.isArray(job.value)
-        ? await callListener(...job.value)
-        : await callListener(job.value);
+      job.value = await callListener(...job.value);
     }
 
     parentPort.postMessage(jobs);

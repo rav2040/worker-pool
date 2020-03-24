@@ -27,7 +27,7 @@ export class WorkerPool {
   private readonly _seq = createRepeatingSequence();
   private readonly _workers: Worker[] = [];
   private readonly _timeouts: NodeJS.Timeout[] = [];
-  private readonly _queue: { n: number, name: string, value: any }[] = [];
+  private readonly _queue: { n: number, name: string, value: any[] }[] = [];
   private readonly _callbacks: Map<number, (value: any) => void> = new Map();
 
   get isStopped() {
