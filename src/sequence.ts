@@ -1,9 +1,12 @@
-export function createRepeatingSequence(start = 0, end = Number.MAX_SAFE_INTEGER) {
-  let n = start;
+const START = 0;
+const END = 10_000;
+
+export function createRepeatingSequence() {
+  let n = START;
 
   return () => {
     const value = n;
-    n = n < end ? n + 1 : 0;
+    n = n < END ? n + 1 : 0;
     return value;
   };
 }
