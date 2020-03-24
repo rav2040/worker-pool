@@ -4,6 +4,8 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "outDir": "./lib",
+    "allowJs": true,
+    "esModuleInterop": true,
     "strict": true,
     "strictNullChecks": true,
     "removeComments": true,
