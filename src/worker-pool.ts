@@ -8,27 +8,27 @@ type WorkerPoolOptions = {
   maxJobsPerWorker?: number,
 };
 
-const STOPPED_DEFAULT = true;
-const DESTROYED_DEFAULT = false;
+const DEFAULT_STOPPED = true;
+const DEFAULT_DESTROYED = false;
 
-const maxNumWorkers = cpus().length;
-const defaultNumWorkers = maxNumWorkers - 1;
+const defaultMaxNumWorkers = cpus().length;
+const defaultNumWorkers = defaultMaxNumWorkers - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
 const defaultMaxJobs = Number.MAX_SAFE_INTEGER;
 
 export class WorkerPool {
-  #stopped = STOPPED_DEFAULT;
-  #destroyed = DESTROYED_DEFAULT;
+  #stopped = DEFAULT_STOPPED;
+  #destroyed = DEFAULT_DESTROYED;
 
   private readonly _numWorkers: number;
   private readonly _maxQueueSize: number;
   private readonly _maxJobsPerWorker: number;
+  private readonly _seq: () => number;
 
-  private readonly _seq = createRepeatingSequence();
   private readonly _workers: Worker[] = [];
   private readonly _timeouts: NodeJS.Timeout[] = [];
   private readonly _queue: { n: number, name: string, value: any[] }[] = [];
-  private readonly _callbacks: Map<number, (value: any) => void> = new Map();
+  private readonly _callbacks: { [key: number]: (value: any) => void } = {};
 
   get isStopped() {
     return this.#stopped;
@@ -57,18 +57,19 @@ export class WorkerPool {
 
     else {
       if (options.numWorkers === 'max') {
-        this._numWorkers = maxNumWorkers;
+        this._numWorkers = defaultMaxNumWorkers;
       }
 
       else {
-        this._numWorkers = options.numWorkers <= maxNumWorkers
+        this._numWorkers = options.numWorkers <= defaultMaxNumWorkers
           ? options.numWorkers
-          : maxNumWorkers;
+          : defaultMaxNumWorkers;
       }
     }
 
     this._maxQueueSize = options.maxQueueSize ?? defaultMaxQueueSize;
     this._maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobs;
+    this._seq = createRepeatingSequence(this._maxQueueSize);
 
     for (let i = 0; i < this._numWorkers; i++) {
       const worker = new Worker(filename);
@@ -76,9 +77,8 @@ export class WorkerPool {
       worker.on('message', (results) => {
         for (let i = 0; i < results.length; i++) {
           const { n, value } = results[i];
-          const callback = this._callbacks.get(n);
-          callback?.(value);
-          this._callbacks.delete(n);
+          const callback = this._callbacks[n];
+          callback(value);
         }
       });
 
@@ -187,7 +187,7 @@ export class WorkerPool {
       }
 
       const n = this._seq();
-      this._callbacks.set(n, resolve);
+      this._callbacks[n] = resolve;
       this._queue.push({ n, name, value: args });
     });
   }
