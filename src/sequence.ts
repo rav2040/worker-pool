@@ -1,12 +1,11 @@
 const START = 0;
-const END = 10_000;
 
-export function createRepeatingSequence() {
+export function createRepeatingSequence(end: number) {
   let n = START;
 
   return () => {
     const value = n;
-    n = n < END ? n + 1 : 0;
+    n = n < end ? n + 1 : 0;
     return value;
   };
 }
