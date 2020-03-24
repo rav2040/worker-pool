@@ -6,7 +6,7 @@ const numCpus = cpus().length;
 
 describe('Creating a task', () => {
   test('using a sync function', () => {
-    function add(a, b) {
+    function add(a: number, b: number) {
       return a + b;
     }
 
@@ -14,7 +14,7 @@ describe('Creating a task', () => {
   });
 
   test('using an async function', () => {
-    async function add(a, b) {
+    async function add(a: number, b: number) {
       return a + b;
     }
 
@@ -193,7 +193,7 @@ describe('Executing multiple tasks', () => {
 
 describe('Executing multiple tasks', () => {
   const pool = new WorkerPool(FILENAME);
-  let promise;
+  let promise: Promise<number>;
 
   afterAll(async () => await pool.destroy());
 
