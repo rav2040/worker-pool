@@ -1,4 +1,4 @@
-import { Worker } from 'worker_threads';
+import { Worker as WorkerBase } from 'worker_threads';
 import { cpus } from 'os';
 import { createRepeatingSequence } from './sequence';
 
@@ -6,9 +6,19 @@ type WorkerPoolOptions = {
   numWorkers?: number | 'max',
   maxQueueSize?: number,
   maxJobsPerWorker?: number,
-};
+}
 
-const DEFAULT_STOPPED = true;
+type WorkerJob = {
+  num: number,
+  name: string,
+  args: any[],
+}
+
+type WorkerJobResult = {
+  num: number,
+  result: any,
+}
+
 const DEFAULT_DESTROYED = false;
 
 const defaultMaxNumWorkers = cpus().length;
@@ -16,8 +26,18 @@ const defaultNumWorkers = defaultMaxNumWorkers - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
 const defaultMaxJobs = Number.MAX_SAFE_INTEGER;
 
+const view: unique symbol = Symbol('data view');
+
+class Worker extends WorkerBase {
+  [view]:Uint8Array;
+
+  constructor(filename: string, options: any, dataView: Uint8Array) {
+    super(filename, options);
+    this[view] = dataView;
+  }
+}
+
 export class WorkerPool {
-  #stopped = DEFAULT_STOPPED;
   #destroyed = DEFAULT_DESTROYED;
 
   private readonly _numWorkers: number;
@@ -27,12 +47,11 @@ export class WorkerPool {
 
   private readonly _workers: Worker[] = [];
   private readonly _timeouts: NodeJS.Timeout[] = [];
-  private readonly _queue: { n: number, name: string, value: any[] }[] = [];
+  private readonly _queue: WorkerJob[] = [];
   private readonly _callbacks: { [key: number]: (value: any) => void } = {};
 
-  get isStopped() {
-    return this.#stopped;
-  }
+  private _activeTasks: number = 0;
+  private _pendingTasks: number = 0;
 
   get isDestroyed() {
     return this.#destroyed;
@@ -48,6 +67,24 @@ export class WorkerPool {
 
   get maxJobsPerWorker() {
     return this._maxJobsPerWorker;
+  }
+
+  get activeTasks() {
+    return this._activeTasks;
+  }
+
+  get pendingTasks() {
+    return this._pendingTasks;
+  }
+
+  get numIdleWorkers() {
+    let i, n;
+
+    for (i = 0, n = 0; i < this._numWorkers; i++) {
+      n = n + (this._workers[i][view][0] === 1 ? 1 : 0);
+    }
+
+    return n;
   }
 
   constructor(filename: string, options: WorkerPoolOptions = {}) {
@@ -72,34 +109,9 @@ export class WorkerPool {
     this._seq = createRepeatingSequence(this._maxQueueSize);
 
     for (let i = 0; i < this._numWorkers; i++) {
-      const worker = new Worker(filename);
-
-      worker.on('message', (results) => {
-        for (let i = 0; i < results.length; i++) {
-          const { n, value } = results[i];
-          const callback = this._callbacks[n];
-          callback(value);
-        }
-      });
-
-      this._workers.push(worker);
-    }
-
-    this.start();
-  }
-
-  start() {
-    if (this.#destroyed) {
-      throw Error('The worker pool has been destroyed.');
-    }
-
-    if (!this.#stopped) {
-      return;
-    }
-
-    for (let i = 0; i < this._numWorkers; i++) {
-      const worker = this._workers[i];
-      worker.ref();
+      const buf = new SharedArrayBuffer(1);
+      const view = new Uint8Array(buf, 0, 1);
+      const worker = new Worker(filename, { workerData: view }, view);
 
       const processJobs = () => {
         const jobs = this._queue.splice(0, this._maxJobsPerWorker);
@@ -113,56 +125,26 @@ export class WorkerPool {
           this._timeouts[i] = setTimeout(processJobs, 0);
         });
 
+        this._activeTasks += jobs.length;
+        this._pendingTasks -= jobs.length;
+
         worker.postMessage(jobs);
       };
 
       this._timeouts[i] = setTimeout(processJobs, 0);
-    }
 
-    this.#stopped = false;
-
-    return this;
-  }
-
-  stop() {
-    if (this.#destroyed) {
-      throw Error('The worker pool has been destroyed.');
-    }
-
-    if (this.#stopped) {
-      return;
-    }
-
-    for (let i = 0; i < this._numWorkers; i++) {
-      clearTimeout(this._timeouts[i]);
-      this._workers[i].unref();
-    }
-
-    this.#stopped = true;
-
-    return this;
-  }
-
-  destroy() {
-    return new Promise<void>((resolve) => {
-      if (this.#destroyed) {
-        resolve();
-        return;
-      }
-
-      if (!this.#stopped) {
-        this.stop();
-      }
-
-      setImmediate(async () => {
-        for (const worker of this._workers) {
-          await worker.terminate();
+      worker.on('message', (results: WorkerJobResult[]) => {
+        for (let i = 0; i < results.length; i++) {
+          const { num, result } = results[i];
+          const callback = this._callbacks[num];
+          callback(result);
         }
 
-        this.#destroyed = true;
-        resolve();
+        this._activeTasks -= results.length;
       });
-    });
+
+      this._workers.push(worker);
+    }
   }
 
   exec(name: string, ...args: any[]) {
@@ -173,9 +155,6 @@ export class WorkerPool {
         err = Error('The worker pool has been destroyed.');
       }
 
-      else if (this.#stopped) {
-        err = Error('The worker pool is stopped.');
-      }
 
       else if (this._queue.length >= this._maxQueueSize) {
         err = Error(`Max job queue size has been reached: ${this._maxQueueSize} jobs`);
@@ -186,9 +165,29 @@ export class WorkerPool {
         return;
       }
 
-      const n = this._seq();
-      this._callbacks[n] = resolve;
-      this._queue.push({ n, name, value: args });
+      const num = this._seq();
+      this._callbacks[num] = resolve;
+      this._queue.push({ num, name, args });
+      this._pendingTasks++;
+    });
+  }
+
+  destroy() {
+    return new Promise<void>((resolve) => {
+      if (this.#destroyed) {
+        resolve();
+        return;
+      }
+
+      setImmediate(async () => {
+        for (let i = 0; i < this._numWorkers; i++) {
+          clearTimeout(this._timeouts[i]);
+          await this._workers[i].terminate();
+        }
+
+        this.#destroyed = true;
+        resolve();
+      });
     });
   }
 }
