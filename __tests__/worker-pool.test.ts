@@ -1,204 +1,95 @@
-const { cpus } = require('os');
-const { WorkerPool, createTask } = require('../src');
+import { cpus } from 'os';
+import { WorkerPool } from '../src';
 
-const FILENAME = './__tests__/example/index.js';
+const SCRIPT_PATH = './__tests__/__mocks__/index.js';
 const numCpus = cpus().length;
 
-describe('Creating a task', () => {
-  test('using a sync function', () => {
-    function add(a: number, b: number) {
-      return a + b;
-    }
-
-    expect(() => createTask('add', add)).not.toThrowError();
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
+}
 
-  test('using an async function', () => {
-    async function add(a: number, b: number) {
-      return a + b;
-    }
-
-    expect(() => createTask('add', add)).not.toThrowError();
-  });
-});
-
-describe('Creating a worker pool', () => {
+describe('Creating a worker pool returns an instance of WorkerPool when', () => {
   test('using default options', async () => {
-    const pool = new WorkerPool(FILENAME);
+    const pool = new WorkerPool(SCRIPT_PATH);
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.numWorkers).toBe(numCpus - 1);
     expect(pool.maxQueueSize).toBe(Number.MAX_SAFE_INTEGER);
-    expect(pool.isStopped).toBe(false);
     expect(pool.isDestroyed).toBe(false);
     await pool.destroy();
   });
 
-  test('with numWorkers set to \'max\'', async () => {
-    const pool = new WorkerPool(FILENAME, { numWorkers: 'max' });
+  test('`numWorkers` is set to `max`', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 'max' });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.numWorkers).toBe(numCpus);
     await pool.destroy();
   });
 
-  test('with numWorkers set to 1', async () => {
-    const pool = new WorkerPool(FILENAME, { numWorkers: 1 });
+  test('`numWorkers` is set to 1', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 1 });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.numWorkers).toBe(1);
     await pool.destroy();
   });
 
-  test('with numWorkers set to number of CPUs + 1', async () => {
-    const pool = new WorkerPool(FILENAME, { numWorkers: numCpus + 1 });
+  test('`numWorkers` is set to number of CPUs + 1', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: numCpus + 1 });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.numWorkers).toBe(numCpus);
     await pool.destroy();
   });
 
-  test('with maxQueueSize set to 100', async () => {
-    const pool = new WorkerPool(FILENAME, { maxQueueSize: 100 });
+  test('`maxQueueSize` is set to 100', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH, { maxQueueSize: 100 });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.maxQueueSize).toBe(100);
     await pool.destroy();
   });
 
-  test('with maxJobsPerWorker set to 100', async () => {
-    const pool = new WorkerPool(FILENAME, { maxJobsPerWorker: 100 });
+  test('`maxJobsPerWorker` is set to 100', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH, { maxJobsPerWorker: 100 });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.maxJobsPerWorker).toBe(100);
     await pool.destroy();
   });
 });
 
-describe('Changing the state of a worker pool', () => {
-  const pool = new WorkerPool(FILENAME);
-  afterAll(async () => await pool.destroy());
-
-  test('Stopping', () => {
-    pool.stop();
-    expect(pool.isStopped).toBe(true);
-  });
-});
-
-describe('Changing the state of a worker pool', () => {
-  const pool = new WorkerPool(FILENAME);
-  afterAll(async () => await pool.destroy());
-
-  test('Stopping and starting', () => {
-    pool.stop();
-    expect(pool.isStopped).toBe(true);
-    pool.start();
-    expect(pool.isStopped).toBe(false);
-  });
-
-  test('Stopping after it has already been stopped', () => {
-    pool.stop();
-    expect(pool.isStopped).toBe(true);
-    pool.stop();
-    expect(pool.isStopped).toBe(true);
-  });
-
-  test('Starting after it has already been started', () => {
-    pool.start();
-    expect(pool.isStopped).toBe(false);
-    pool.start();
-    expect(pool.isStopped).toBe(false);
-  });
-});
-
-describe('Changing the state of a worker pool', () => {
-  const pool = new WorkerPool(FILENAME);
-
-  test('Destroying', async () => {
-    await pool.destroy();
-    expect(pool.isDestroyed).toBe(true);
-  });
-});
-
-describe('Changing the state of a worker pool', () => {
-  const pool = new WorkerPool(FILENAME);
-
-  test('Starting after is has been destroyed', async () => {
-    await pool.destroy();
-    expect(() => pool.start()).toThrow('The worker pool has been destroyed.');
-  });
-});
-
-describe('Changing the state of a worker pool', () => {
-  const pool = new WorkerPool(FILENAME);
-
-  test('Stopping after is has been destroyed', async () => {
-    await pool.destroy();
-    expect(() => pool.stop()).toThrow('The worker pool has been destroyed.');
-  });
-});
-
-describe('Changing the state of a worker pool', () => {
-  const pool = new WorkerPool(FILENAME);
-
-  test('Destroying after is has been destroyed', async () => {
-    await pool.destroy();
-    expect(pool.isDestroyed).toBe(true);
-    await pool.destroy();
-    expect(pool.isDestroyed).toBe(true);
-  });
-});
-
 describe('Executing a task', () => {
-  const pool = new WorkerPool(FILENAME);
+  const pool = new WorkerPool(SCRIPT_PATH);
 
-  afterAll(async () => await pool.destroy());
-
-  test ('add(4, 2) returns 6', async () => {
+  test ('with function `add(4, 2)` returns 6', async () => {
     const promise = pool.exec('add', 2, 4);
     await expect(promise).resolves.toBe(6);
   });
-});
-
-describe('Executing a task', () => {
-  const pool = new WorkerPool(FILENAME);
-
-  afterAll(async () => await pool.destroy());
-
-  test ('after the worker pool has been stopped throws an error', async () => {
-    pool.stop();
-
-    const promise = pool.exec('add', 2, 4);
-    await expect(promise).rejects.toThrow('The worker pool is stopped.');
-  });
-});
-
-describe('Executing a task', () => {
-  const pool = new WorkerPool(FILENAME);
 
   test ('after the worker pool has been destroyed throws an error', async () => {
     await pool.destroy();
-
     const promise = pool.exec('add', 2, 4);
     await expect(promise).rejects.toThrow('The worker pool has been destroyed');
   });
 });
 
-describe('Executing multiple tasks', () => {
-  const pool = new WorkerPool(FILENAME, { maxQueueSize: 1 });
-  let promise;
+describe('Executing an async task', () => {
+  const pool = new WorkerPool(SCRIPT_PATH);
 
   afterAll(async () => await pool.destroy());
 
-  test ('when maxQueueSize is set to 1 throws an error', async () => {
-    promise = pool.exec('add', 2, 4);
-    promise = pool.exec('add', 2, 4);
-    await expect(promise).rejects.toThrow('Max job queue size has been reached: 1 jobs');
+  test ('with function `addAsync(4, 2)` returns 6', async () => {
+    const promise = pool.exec('addAsync', 2, 4);
+    await expect(promise).resolves.toBe(6);
   });
 });
 
-describe('Executing multiple tasks', () => {
+describe('Executing multiple tasks simultaneously', () => {
   const maxQueueSize = 10;
-  const pool = new WorkerPool(FILENAME, { maxQueueSize });
+  const pool = new WorkerPool(SCRIPT_PATH, { maxQueueSize });
   let promise: Promise<number>;
 
   afterAll(async () => await pool.destroy());
 
-  test ('is successful when number of tasks equals maxQueueSize', async () => {
+  test ('is successful when the number of tasks equals `maxQueueSize`', async () => {
     for (let i = 0; i < maxQueueSize; i++) {
       promise = pool.exec('add', 2, 4);
     }
@@ -206,11 +97,72 @@ describe('Executing multiple tasks', () => {
     await expect(promise).resolves.toBe(6);
   });
 
-  test ('throws an error when number of tasks exceeds maxQueueSize', async () => {
+  test ('throws an error when the number of tasks exceeds `maxQueueSize`', async () => {
     for (let i = 0; i < maxQueueSize + 1; i++) {
       promise = pool.exec('add', 2, 4);
     }
 
     await expect(promise).rejects.toThrow('Max job queue size has been reached: 10 jobs');
+  });
+});
+
+describe('Destroying a worker pool', () => {
+  const pool = new WorkerPool(SCRIPT_PATH);
+
+  test('sets `isDestroyed` to true', async () => {
+    await pool.destroy();
+    expect(pool.isDestroyed).toBe(true);
+  });
+
+  test('after it has been destroyed has no effect', async () => {
+    await pool.destroy();
+    expect(pool.isDestroyed).toBe(true);
+  });
+});
+
+describe('Number of idle workers when `numWorkers` is 2', () => {
+  const pool = new WorkerPool(SCRIPT_PATH);
+
+  afterAll(async () => await pool.destroy());
+
+  test('and no tasks are executed is equal to 2', () => {
+    expect(pool.numIdleWorkers).toEqual(pool.numWorkers);
+  })
+
+  test('and one `sleep5` task is executed is equal to 1', async () => {
+    pool.exec('sleep5');
+    await sleep(10);
+    expect(pool.numIdleWorkers).toEqual(pool.numWorkers - 1);
+  })
+});
+
+describe('Number of `sleep5` tasks immediately after executing 10 tasks is', () => {
+  const pool = new WorkerPool(SCRIPT_PATH);
+
+  afterAll(async () => await pool.destroy());
+
+  test('pending: 10, active: 0', () => {
+    for (let i = 0; i < 10; i++) {
+      pool.exec('sleep5');
+    }
+
+    expect(pool.pendingTasks).toBe(10);
+    expect(pool.activeTasks).toBe(0);
+  });
+});
+
+describe('Number of `sleep5` tasks 10ms after executing 10 tasks is', () => {
+  const pool = new WorkerPool(SCRIPT_PATH);
+
+  afterAll(async () => await pool.destroy());
+
+  test('pending: 0, active: 10', async () => {
+    for (let i = 0; i < 10; i++) {
+      pool.exec('sleep5');
+    }
+
+    await sleep(10);
+    expect(pool.pendingTasks).toBe(0);
+    expect(pool.activeTasks).toBe(10);
   });
 });

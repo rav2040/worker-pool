@@ -2,14 +2,7 @@ module.exports = {
   testEnvironment: 'node',
   testPathIgnorePatterns: [
     '/node_modules/',
-    '__tests__/example'
+    '__tests__/__mocks__'
   ],
-  preset: 'ts-jest/presets/js-with-ts',
-  globals: {
-    'ts-jest': {
-      tsConfig: {
-        allowJs: true,
-      }
-    }
-  }
+  preset: 'ts-jest',
 };
