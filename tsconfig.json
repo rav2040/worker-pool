@@ -1,22 +1,19 @@
 {
   "compilerOptions": {
-    "target": "es2017",
+    "target": "ES2019",
     "module": "CommonJS",
-    "moduleResolution": "node",
-    "outDir": "./lib",
-    "allowJs": true,
-    "esModuleInterop": true,
+    "outDir": "lib",
     "strict": true,
     "strictNullChecks": true,
-    "removeComments": true,
     "declaration": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
+    "declarationMap": true,
+    "removeComments": true,
     "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "forceConsistentCasingInFileNames":true
   },
   "include": [
-    "./src/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules"
