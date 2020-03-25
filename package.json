@@ -1,6 +1,6 @@
 {
   "name": "@tuft/worker-pool",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "description": "Create and manage a pool of workers in Node.js using worker threads.",
   "author": "Stuart Kennedy",
   "license": "MIT",
@@ -22,10 +22,10 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "test": "jest -i",
-    "test:coverage": "jest -i --coverage",
+    "test": "tsc --project tsconfig.test.json && jest",
+    "test:coverage": "tsc --project tsconfig.test.json && jest --coverage",
     "prebuild": "npm test",
-    "build": "rm -rf ./lib && tsc"
+    "build": "rm -rf ./lib && tsc -b"
   },
   "devDependencies": {
     "@types/jest": "^25.1.4",
