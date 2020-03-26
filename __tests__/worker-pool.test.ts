@@ -76,9 +76,28 @@ describe('Executing an async task', () => {
 
   afterAll(async () => await pool.destroy());
 
-  test ('with function `addAsync(4, 2)` returns 6', async () => {
-    const promise = pool.exec('addAsync', 2, 4);
+  test ('with function `add_async(4, 2)` returns 6', async () => {
+    const promise = pool.exec('add_async', 2, 4);
     await expect(promise).resolves.toBe(6);
+  });
+});
+
+describe('Executing a task that throws an error', () => {
+  const pool = new WorkerPool(SCRIPT_PATH);
+  afterAll(async () => await pool.destroy());
+
+  test('correctly catches the error', async () => {
+    await expect(pool.exec('throw_error')).rejects.toThrow('This is a test error.');
+  });
+});
+
+describe('Executing a task name that doesn\'t exist', () => {
+  const taskName = 'fake_task';
+  const pool = new WorkerPool(SCRIPT_PATH);
+  afterAll(async () => await pool.destroy());
+
+  test('throws an error', async () => {
+    await expect(pool.exec(taskName)).rejects.toThrow(`Task with name '${taskName}' was not found.`);
   });
 });
 
@@ -136,7 +155,7 @@ describe('Number of idle workers when `numWorkers` is 2', () => {
   })
 });
 
-describe('Number of `sleep5` tasks immediately after executing 10 tasks is', () => {
+describe('Number of `sleep5` tasks 0ms after executing 10 tasks is', () => {
   const pool = new WorkerPool(SCRIPT_PATH);
 
   afterAll(async () => await pool.destroy());
@@ -153,7 +172,6 @@ describe('Number of `sleep5` tasks immediately after executing 10 tasks is', () 
 
 describe('Number of `sleep5` tasks 10ms after executing 10 tasks is', () => {
   const pool = new WorkerPool(SCRIPT_PATH);
-
   afterAll(async () => await pool.destroy());
 
   test('pending: 0, active: 10', async () => {
