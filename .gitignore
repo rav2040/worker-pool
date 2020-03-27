@@ -1,3 +1,4 @@
 node_modules
 coverage
 lib
+__tests__/__mocks__/worker-script.js
