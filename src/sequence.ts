@@ -1,16 +1,16 @@
 const START = 0;
+const INCREMENT = 1;
 
 /**
- * Returns an anonymous function that returns the next iteration of a number, starting with zero, each time it's
- * called. It does this up until it reaches the provided 'end' argument, at which point it resets to zero.
+ * Returns an anonymous function that, when called, returns the next iteration of a number (starting from 0 and
+ * increasing by 1). The number resets to zero once it reaches the value of the 'end' parameter.
  */
 
 export function createRepeatingSequence(end: number) {
-  let n = START;
+  let n: number = end;
 
   return () => {
-    const value = n;
-    n = n < end ? n + 1 : 0;
-    return value;
+    n = (n < end) ? n + INCREMENT : START;
+    return n;
   };
 }
