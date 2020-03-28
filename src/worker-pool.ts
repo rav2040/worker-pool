@@ -1,9 +1,14 @@
-import { Worker as WorkerBase } from 'worker_threads';
+import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 import { createRepeatingSequence } from './sequence';
 
+const enum WorkerStatus {
+  Inactive = 0,
+  Active = 1,
+}
+
 type WorkerPoolOptions = {
-  numWorkers?: number | 'max',
+  numWorkers?: number,
   maxQueueSize?: number,
   maxJobsPerWorker?: number,
 }
@@ -27,154 +32,174 @@ type PromiseCallback = {
 
 const DEFAULT_DESTROYED = false;
 
-const defaultMaxNumWorkers = cpus().length;
-const defaultNumWorkers = defaultMaxNumWorkers - 1;
+const defaultNumWorkers = cpus().length - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
-const defaultMaxJobs = Number.MAX_SAFE_INTEGER;
+const defaultMaxJobsPerWorker = Number.MAX_SAFE_INTEGER;
 
-const activeTasksDataView: unique symbol = Symbol('data view');
+const activeSymbol = Symbol('WorkerPoolWorker property: active');
+const timeoutSymbol = Symbol('WorkerPoolWorker property: timeout');
 
 /**
- * The extended Worker class has an additional 'activeTasksDataView' property that must be passed as the
- * second argument when the instance is created. This is an Int32Array which references a SharedArrayBuffer, used by the
- * worker thread to report the number of active tasks it is currently executing back to the worker pool.
+ * Extends the Worker class for the sole purpose of adding extra properties used by the worker pool.
  */
 
-class Worker extends WorkerBase {
-  [activeTasksDataView]: Int32Array;
-
-  constructor(filename: string, dataView: Int32Array) {
-    super(filename, { workerData: dataView });
-    this[activeTasksDataView] = dataView;
-  }
+class WorkerPoolWorker extends Worker {
+  [activeSymbol]: WorkerStatus = WorkerStatus.Inactive; // Denotes whether or not the worker is active (busy).
+  [timeoutSymbol]: NodeJS.Timeout;                      // Recursive setTimeout() to take and process jobs.
 }
 
 /**
- * The WorkerPool class creates and manages a pool of Workers which can execute tasks included in the provided script.
+ * Creates and manages a pool of Workers which are able to execute the tasks included in the provided script.
  */
 
 export class WorkerPool {
-  #destroyed = DEFAULT_DESTROYED;
+  #destroyed: boolean = DEFAULT_DESTROYED;  // Denotes whether or not the worker pool has been destroyed.
 
-  private readonly _numWorkers: number;
-  private readonly _maxQueueSize: number;
-  private readonly _maxJobsPerWorker: number;
-  private readonly _seq: () => number; // Returns a number that iterates by 1 each time it's called.
+  readonly #numWorkers: number;             // The total number of workers employed by the worker pool.
+  readonly #maxQueueSize: number;           // The max number of pending jobs the worker pool will accept.
+  readonly #maxJobsPerWorker: number;       // The max number of jobs a worker will take from the queue.
+  readonly #seq: () => number;              // Returns a self-incrementing value.
 
-  private readonly _workers: Worker[] = [];
-  private readonly _timeouts: NodeJS.Timeout[] = [];
-  private readonly _queue: WorkerJob[] = [];
-  private readonly _callbacks: Map<number, PromiseCallback> = new Map();
+  readonly #workers: WorkerPoolWorker[] = [];                    // An array of workers.
+  readonly #queue: WorkerJob[] = [];                             // A 'first-in, first-out' job queue.
+  readonly #callbacks: Map<number, PromiseCallback> = new Map(); // Task callbacks indexed by job number.
 
-  get isDestroyed() {
+  /**
+   * Returns the 'destroyed' status of the worker pool.
+   */
+  get destroyed() {
     return this.#destroyed;
   }
 
+  /**
+   * Returns the total number of workers employed by the worker pool.
+   */
   get numWorkers() {
-    return this._numWorkers;
+    return this.#numWorkers;
   }
 
+  /**
+   * Returns the maximum number of jobs the queue will store.
+   */
   get maxQueueSize() {
-    return this._maxQueueSize;
+    return this.#maxQueueSize;
   }
 
+  /**
+   * Returns the maximum number of jobs a worker will take from the queue.
+   */
   get maxJobsPerWorker() {
-    return this._maxJobsPerWorker;
+    return this.#maxJobsPerWorker;
   }
 
+  /**
+   * Returns the current number of pending tasks.
+   */
   get pendingTasks() {
-    return this._queue.length;
+    return this.#queue.length;
   }
 
+  /**
+   * Returns the current number of active tasks.
+   */
   get activeTasks() {
+    return this.#callbacks.size - this.#queue.length;
+  }
+
+  /**
+   * Returns the current number of active (busy) workers.
+   */
+  get numActiveWorkers() {
     let i, n;
 
-    for (i = 0, n = 0; i < this._numWorkers; i++) {
-      n += this._workers[i][activeTasksDataView][0];
+    for (i = 0, n = 0; i < this.#numWorkers; i++) {
+      n += this.#workers[i][activeSymbol];
     }
 
     return n;
   }
 
+  /**
+   * Returns the current number of idle workers.
+   */
   get numIdleWorkers() {
     let i, n;
 
-    for (i = 0, n = 0; i < this._numWorkers; i++) {
-      n = n + (this._workers[i][activeTasksDataView][0] === 0 ? 1 : 0);
+    for (i = 0, n = this.#numWorkers; i < this.#numWorkers; i++) {
+      n -= this.#workers[i][activeSymbol];
     }
 
     return n;
   }
 
   constructor(filename: string, options: WorkerPoolOptions = {}) {
-    if (!options.numWorkers) {
-      this._numWorkers = defaultNumWorkers;
-    }
+    this.#numWorkers = options.numWorkers ?? defaultNumWorkers;
+    this.#maxQueueSize = options.maxQueueSize ?? defaultMaxQueueSize;
+    this.#maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobsPerWorker;
+    this.#seq = createRepeatingSequence(this.#maxQueueSize);
 
-    else {
-      if (options.numWorkers === 'max') {
-        this._numWorkers = defaultMaxNumWorkers;
-      }
+    for (let i = 0; i < this.#numWorkers; i++) {
+      const worker = new WorkerPoolWorker(filename);
 
-      else {
-        this._numWorkers = options.numWorkers <= defaultMaxNumWorkers
-          ? options.numWorkers
-          : defaultMaxNumWorkers;
-      }
-    }
-
-    this._maxQueueSize = options.maxQueueSize ?? defaultMaxQueueSize;
-    this._maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobs;
-    this._seq = createRepeatingSequence(this._maxQueueSize);
-
-    for (let i = 0; i < this._numWorkers; i++) {
-      // A SharedArrayBuffer is passed to the worker, which is used to report how many active tasks it has.
-      const buf = new SharedArrayBuffer(4);
-      const view = new Int32Array(buf);
-
-      // Create a worker with the provided script.
-      const worker = new Worker(filename, view);
-
-      // A recursive function executed with setTimeout(). Removes any jobs currently in the queue (up until the max jobs
-      // limit) and passes them to the worker thread.
       const processJobs = () => {
-        const jobs = this._queue.splice(0, this._maxJobsPerWorker);
+        // Take any jobs currently in the queue (up to the max jobs limit).
+        const jobs = this.#queue.splice(0, this.#maxJobsPerWorker);
 
         if (jobs.length === 0) {
-          this._timeouts[i] = setTimeout(processJobs, 0);
+          // There are no jobs, so do nothing except recursively call processJobs().
+          worker[timeoutSymbol] = setTimeout(processJobs, 0);
           return;
         }
 
-        worker.once('message', () => {
-          this._timeouts[i] = setTimeout(processJobs, 0);
-        });
-
+        // Send the jobs to the worker thread.
         worker.postMessage(jobs);
+
+        // Mark this worker as being active.
+        worker[activeSymbol] = WorkerStatus.Active;
       };
 
-      this._timeouts[i] = setTimeout(processJobs, 0);
+      worker[timeoutSymbol] = setTimeout(processJobs, 0);
 
-      // When task results are received from the worker, iterate over them and execute their corresponding callbacks.
-      worker.on('message', (results: WorkerJobResult[]) => {
+       worker.on('message', (results: WorkerJobResult[]) => {
         for (let i = 0; i < results.length; i++) {
           const { num, err, result } = results[i];
-          const { resolve, reject } = this._callbacks.get(num)!;
+          const { resolve, reject } = this.#callbacks.get(num) as PromiseCallback;
 
+          // Resolve or reject the original promise.
           err ? reject(err) : resolve(result);
 
-          // Delete redundant callbacks to avoid running out of memory.
-          this._callbacks.delete(num);
+          // Delete the redundant callback to avoid a memory leak.
+          this.#callbacks.delete(num);
         }
+
+        // Mark this worker as being active.
+        worker[activeSymbol] = WorkerStatus.Inactive;
+
+        // All results have been processed, so start accepting more jobs.
+        worker[timeoutSymbol] = setTimeout(processJobs, 0);
       });
 
       // Add the newly created worker to the worker pool.
-      this._workers.push(worker);
+      this.#workers.push(worker);
     }
   }
 
   /**
-   * Execute a task by name. All arguments after the first argument are passed on to the worker. Returns
-   * a promise which either resolves to the result of the task callback, or rejects with an Error.
+   * Returns an object that contains statistics for the worker pool.
+   */
+
+  getStats() {
+    return {
+      activeTasks: this.activeTasks,
+      pendingTasks: this.pendingTasks,
+      idleWorkers: this.numIdleWorkers,
+      activeWorkers: this.numActiveWorkers,
+    };
+  }
+
+  /**
+   * Executes the provided task name. All arguments after the first are passed on to the worker. Returns
+   * a promise, which either resolves to the result of executed task, or rejects with an Error.
    */
 
   exec(name: string, ...args: any[]) {
@@ -185,8 +210,8 @@ export class WorkerPool {
         err = Error('The worker pool has been destroyed.');
       }
 
-      else if (this._queue.length >= this._maxQueueSize) {
-        err = Error(`Max job queue size has been reached: ${this._maxQueueSize} jobs`);
+      else if (this.#queue.length >= this.#maxQueueSize) {
+        err = Error(`Max job queue size has been reached: ${this.#maxQueueSize} jobs`);
       }
 
       if (err) {
@@ -194,30 +219,45 @@ export class WorkerPool {
         return;
       }
 
-      const num = this._seq();
-      this._callbacks.set(num, { resolve, reject });
-      this._queue.push({ num, name, args });
+      // Get a new job number.
+      const num = this.#seq();
+
+      // Save the promise callback, indexed by job number, so that it can be accessed later.
+      this.#callbacks.set(num, { resolve, reject });
+
+      // Add the new job to the queue.
+      this.#queue.push({ num, name, args });
     });
   }
 
   /**
-   * Destroys the worker pool instance by terminating all workers, preventing the worker pool from being used again.
-   * Tasks not yet completed are immediately canceled. This should be called when the worker pool is no longer needed
-   * in order to prevent open handles. Returns a promise that resolves once all workers have been successfully
+   * Destroys the worker pool by terminating all workers, preventing the worker pool from being used again.
+   * Tasks not yet completed are immediately canceled. Returns a promise that resolves once all workers have been
    * terminated.
    */
 
   destroy() {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>(resolve => {
       if (this.#destroyed) {
         resolve();
         return;
       }
 
       setImmediate(async () => {
-        for (let i = 0; i < this._numWorkers; i++) {
-          clearTimeout(this._timeouts[i]);
-          await this._workers[i].terminate();
+        for (let i = 0; i < this.#numWorkers; i++) {
+          const worker = this.#workers[i];
+          await worker.terminate();
+          clearTimeout(worker[timeoutSymbol]);
+        }
+
+        // Perform a final cleanup by removing pending tasks from the queue and rejecting any remaining callbacks.
+
+        this.#queue.splice(0);
+
+        for (const [num, { reject }] of this.#callbacks) {
+          const err = Error('The worker pool was destroyed before the task could complete.');
+          reject(err);
+          this.#callbacks.delete(num);
         }
 
         this.#destroyed = true;

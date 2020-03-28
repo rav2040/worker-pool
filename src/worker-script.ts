@@ -1,20 +1,31 @@
-import { isMainThread, parentPort, workerData as activeTasksDataView } from 'worker_threads';
+import type { MessagePort } from 'worker_threads';
+import { isMainThread, parentPort } from 'worker_threads';
 
-const tasks: Map<string, (...args: any[]) => any> = new Map();
+type TaskCallback = (...args: any[]) => any;
 
-/** Adds a callback function to the task map. */
-export function createTask(name: string, callback: (...args: any[]) => any): void {
+const tasks: Map<string, TaskCallback> = new Map();
+
+/**
+ * Adds the provided callback function to the tasks Map, indexed by the provided name. Throws an error if a task with
+ * the provided name already exists.
+ */
+
+export function createTask(name: string, callback: TaskCallback): void {
+  if (tasks.has(name)) {
+    throw Error(`A task with the name '${name}' already exists.`);
+  }
+
   tasks.set(name, callback);
 };
 
-// Code coverage doesn't work for the following code because it doesn't run in the main thread, so we ignore it.
-/* istanbul ignore if */
-if (!isMainThread) {
-  // The module has been imported by a worker.
-  parentPort!.on('message', async (jobs) => {
-    // Set the number of active tasks for this worker.
-    activeTasksDataView.set([jobs.length]);
+// Code coverage doesn't work for the following code because it doesn't run in the main thread, so it is ignored.
 
+/* istanbul ignore next */
+if (!isMainThread) {
+  // This is a worker thread.
+  const port = parentPort as MessagePort;
+
+  port.on('message', async (jobs) => {
     // Iterate through the list of jobs and execute their corresponding callbacks, passing any given arguments.
     for (let i = 0; i < jobs.length; i++) {
       const { num, name, args } = jobs[i];
@@ -22,7 +33,7 @@ if (!isMainThread) {
 
       try {
         if (callback === undefined) {
-          throw Error(`Task with name '${name}' was not found.`);
+          throw Error(`A task with the name '${name}' was not found.`);
         }
 
         const result = await callback(...args);
@@ -34,10 +45,7 @@ if (!isMainThread) {
       }
     }
 
-    // Pass the task results back to the main thread.
-    parentPort!.postMessage(jobs);
-
-    // Reset the number of active tasks for this worker to zero.
-    activeTasksDataView.set([0]);
+    // Send the completed jobs back to the main thread.
+    port.postMessage(jobs);
   });
 }
