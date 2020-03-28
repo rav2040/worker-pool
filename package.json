@@ -22,8 +22,8 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "test": "tsc --project tsconfig.test.json && jest -i",
-    "test:coverage": "tsc --project tsconfig.test.json && jest -i --coverage",
+    "test": "tsc --project tsconfig.test.json && jest",
+    "test:coverage": "tsc --project tsconfig.test.json && jest --coverage",
     "prebuild": "npm test",
     "build": "rm -rf ./lib && tsc -b"
   },
