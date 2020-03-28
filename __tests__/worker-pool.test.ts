@@ -16,14 +16,7 @@ describe('Creating a worker pool returns an instance of WorkerPool when', () => 
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.numWorkers).toBe(numCpus - 1);
     expect(pool.maxQueueSize).toBe(Number.MAX_SAFE_INTEGER);
-    expect(pool.isDestroyed).toBe(false);
-    await pool.destroy();
-  });
-
-  test('`numWorkers` is set to `max`', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 'max' });
-    expect(pool).toBeInstanceOf(WorkerPool);
-    expect(pool.numWorkers).toBe(numCpus);
+    expect(pool.destroyed).toBe(false);
     await pool.destroy();
   });
 
@@ -34,8 +27,8 @@ describe('Creating a worker pool returns an instance of WorkerPool when', () => 
     await pool.destroy();
   });
 
-  test('`numWorkers` is set to number of CPUs + 1', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: numCpus + 1 });
+  test('`numWorkers` is set to number of CPUs', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: numCpus });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.numWorkers).toBe(numCpus);
     await pool.destroy();
@@ -52,6 +45,25 @@ describe('Creating a worker pool returns an instance of WorkerPool when', () => 
     const pool = new WorkerPool(SCRIPT_PATH, { maxJobsPerWorker: 100 });
     expect(pool).toBeInstanceOf(WorkerPool);
     expect(pool.maxJobsPerWorker).toBe(100);
+    await pool.destroy();
+  });
+});
+
+describe('Calling getStats() returns an object with properties', () => {
+  test('that have the same values as their corresponding instance properties', async () => {
+    const pool = new WorkerPool(SCRIPT_PATH);
+
+    const expectedResult = {
+      activeTasks: pool.activeTasks,
+      pendingTasks: pool.pendingTasks,
+      idleWorkers: pool.numIdleWorkers,
+      activeWorkers: pool.numActiveWorkers,
+    };
+
+    const result = pool.getStats();
+
+    expect(result).toEqual(expectedResult);
+
     await pool.destroy();
   });
 });
@@ -97,7 +109,7 @@ describe('Executing a task name that doesn\'t exist', () => {
   afterAll(async () => await pool.destroy());
 
   test('throws an error', async () => {
-    await expect(pool.exec(taskName)).rejects.toThrow(`Task with name '${taskName}' was not found.`);
+    await expect(pool.exec(taskName)).rejects.toThrow(`A task with the name '${taskName}' was not found.`);
   });
 });
 
@@ -128,59 +140,68 @@ describe('Executing multiple tasks simultaneously', () => {
 describe('Destroying a worker pool', () => {
   const pool = new WorkerPool(SCRIPT_PATH);
 
-  test('sets `isDestroyed` to true', async () => {
+  test('sets `destroyed` to true', async () => {
     await pool.destroy();
-    expect(pool.isDestroyed).toBe(true);
+    expect(pool.destroyed).toBe(true);
   });
 
   test('after it has been destroyed has no effect', async () => {
     await pool.destroy();
-    expect(pool.isDestroyed).toBe(true);
+    expect(pool.destroyed).toBe(true);
   });
 });
 
-describe('Number of idle workers when `numWorkers` is 2', () => {
-  const pool = new WorkerPool(SCRIPT_PATH);
+describe('Number of active/idle workers when \'numWorkers\' is 2', () => {
+  const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 2 });
 
   afterAll(async () => await pool.destroy());
 
-  test('and no tasks are executed is equal to 2', () => {
-    expect(pool.numIdleWorkers).toEqual(pool.numWorkers);
+  test('and no tasks are executed is equal to 0/2', () => {
+    expect(pool.numActiveWorkers).toEqual(0);
+    expect(pool.numIdleWorkers).toEqual(2);
   })
 
-  test('and one `sleep5` task is executed is equal to 1', async () => {
-    pool.exec('sleep5');
-    await sleep(10);
-    expect(pool.numIdleWorkers).toEqual(pool.numWorkers - 1);
+  test('and one \'sleep\' task is executed is equal to 1/1', async () => {
+    const promise = pool.exec('sleep10ms');
+    await sleep(5);
+    expect(pool.numActiveWorkers).toEqual(1);
+    expect(pool.numIdleWorkers).toEqual(1);
+    await promise;
   })
 });
 
-describe('Number of `sleep5` tasks 0ms after executing 10 tasks is', () => {
+describe('After executing the \'sleep100ms\' task there are', () => {
   const pool = new WorkerPool(SCRIPT_PATH);
 
   afterAll(async () => await pool.destroy());
 
-  test('pending: 10, active: 0', () => {
-    for (let i = 0; i < 10; i++) {
-      pool.exec('sleep5');
-    }
+  test('1 pending task, 0 active tasks', async () => {
+    const promise = pool.exec('sleep10ms');
 
-    expect(pool.pendingTasks).toBe(10);
+    expect(pool.pendingTasks).toBe(1);
     expect(pool.activeTasks).toBe(0);
+
+    await promise;
+  });
+
+  test('0 pending tasks, 1 active task (with 0ms pause)', async () => {
+    const promise = pool.exec('sleep10ms');
+
+    await sleep(0);
+
+    expect(pool.pendingTasks).toBe(0);
+    expect(pool.activeTasks).toBe(1);
+
+    await promise;
   });
 });
 
-describe('Number of `sleep5` tasks 10ms after executing 10 tasks is', () => {
+describe('Calling destroy() immediately after executing a task', () => {
   const pool = new WorkerPool(SCRIPT_PATH);
-  afterAll(async () => await pool.destroy());
 
-  test('pending: 0, active: 10', async () => {
-    for (let i = 0; i < 10; i++) {
-      pool.exec('sleep5');
-    }
-
-    await sleep(10);
-    expect(pool.pendingTasks).toBe(0);
-    expect(pool.activeTasks).toBe(10);
+  test('causes the task to throw an error', async () => {
+    const promise = pool.exec('add', 4, 2);
+    await pool.destroy();
+    await expect(promise).rejects.toThrow('The worker pool was destroyed before the task could complete.');
   });
 });
