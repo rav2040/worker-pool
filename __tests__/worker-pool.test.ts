@@ -23,7 +23,7 @@ describe('Creating a worker pool', () => {
 
       await pool.destroy();
     });
-  })
+  });
 
   describe('with custom options', () => {
     test('returns an instance of WorkerPool with expected values', async () => {
@@ -47,7 +47,17 @@ describe('Creating a worker pool', () => {
 
       await pool.destroy();
     });
-  })
+  });
+
+  describe('with option \'numWorkers\' set to 0', () => {
+    test('returns an instance of WorkerPool with numWorkers equal to 1', async () => {
+      const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 0 });
+
+      expect(pool.numWorkers).toBe(1);
+
+      await pool.destroy();
+    });
+  });
 });
 
 describe('Calling getStats() ', () => {
