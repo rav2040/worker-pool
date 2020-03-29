@@ -147,7 +147,7 @@ export class WorkerPool {
         const jobs = this.#queue.splice(0, this.#maxJobsPerWorker);
 
         if (jobs.length === 0) {
-          // There are no jobs, so do nothing except recursively call processJobs().
+          // There are no jobs, so do nothing except continue to watch for jobs.
           worker[timeoutSymbol] = setTimeout(processJobs, 0);
           return;
         }
@@ -159,9 +159,11 @@ export class WorkerPool {
         worker[activeSymbol] = WorkerStatus.Active;
       };
 
+      // Start watching the queue for pending jobs.
       worker[timeoutSymbol] = setTimeout(processJobs, 0);
 
        worker.on('message', (results: WorkerJobResult[]) => {
+        // Emit an event for each completed job, passing the corresponding results.
         for (let i = 0; i < results.length; i++) {
           const { num, err, result } = results[i];
           this.#events.emit(num, err, result);
@@ -217,6 +219,7 @@ export class WorkerPool {
       // Get a new job number.
       const num = this.#seq().toString();
 
+      // Listen for the job completion event.
       this.#events.once(num, (err, result) => {
         err ? reject(err) : resolve(result);
       });
@@ -240,18 +243,19 @@ export class WorkerPool {
       }
 
       setImmediate(async () => {
+        // Terminate workers and clear their recursive timeouts.
         for (let i = 0; i < this.#numWorkers; i++) {
           const worker = this.#workers[i];
           await worker.terminate();
           clearTimeout(worker[timeoutSymbol]);
         }
 
-        // Perform a final cleanup by removing pending tasks from the queue and rejecting any remaining promises.
-
+        // Remove pending tasks from the queue.
         this.#queue.splice(0);
 
+        // Reject any remaining promises.
+        const err = Error('The worker pool was destroyed before the task could complete.');
         for (const num of this.#events.eventNames()) {
-          const err = Error('The worker pool was destroyed before the task could complete.');
           this.#events.emit(num, err);
         }
 
