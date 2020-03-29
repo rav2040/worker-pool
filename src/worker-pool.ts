@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import { Worker } from 'worker_threads';
 import { cpus } from 'os';
 import { createRepeatingSequence } from './sequence';
@@ -14,20 +15,15 @@ type WorkerPoolOptions = {
 }
 
 type WorkerJob = {
-  num: number,
+  num: string,
   name: string,
   args: any[],
 }
 
 type WorkerJobResult = {
-  num: number,
+  num: string,
   err?: Error,
   result?: any,
-}
-
-type PromiseCallback = {
-  resolve: (value?: any) => void,
-  reject: (err: Error) => void,
 }
 
 const MIN_NUM_WORKERS = 1;
@@ -56,14 +52,14 @@ class WorkerPoolWorker extends Worker {
 export class WorkerPool {
   #destroyed: boolean = DEFAULT_DESTROYED;  // Denotes whether or not the worker pool has been destroyed.
 
-  readonly #numWorkers: number;             // The total number of workers employed by the worker pool.
-  readonly #maxQueueSize: number;           // The max number of pending jobs the worker pool will accept.
-  readonly #maxJobsPerWorker: number;       // The max number of jobs a worker will take from the queue.
-  readonly #seq: () => number;              // Returns a self-incrementing value.
+  readonly #numWorkers: number;               // The total number of workers employed by the worker pool.
+  readonly #maxQueueSize: number;             // The max number of pending jobs the worker pool will accept.
+  readonly #maxJobsPerWorker: number;         // The max number of jobs a worker will take from the queue.
+  readonly #seq: () => number;                // Returns a self-incrementing value.
 
-  readonly #workers: WorkerPoolWorker[] = [];                   // An array of workers.
-  readonly #queue: WorkerJob[] = [];                            // A 'first-in, first-out' job queue.
-  readonly #callbacks: { [key: number]: PromiseCallback } = {}; // Task callbacks indexed by job number.
+  readonly #workers: WorkerPoolWorker[] = [];           // An array of workers.
+  readonly #queue: WorkerJob[] = [];                    // A 'first-in, first-out' job queue.
+  readonly #events: EventEmitter = new EventEmitter();  // Handles promise callbacks.
 
   /**
    * Returns the 'destroyed' status of the worker pool.
@@ -104,13 +100,7 @@ export class WorkerPool {
    * Returns the current number of active tasks.
    */
   get activeTasks() {
-    let n = -this.#queue.length;
-
-    for (const _ in this.#callbacks) {
-      n++;
-    }
-
-    return n;
+    return this.#events.eventNames().length - this.#queue.length;
   }
 
   /**
@@ -174,13 +164,7 @@ export class WorkerPool {
        worker.on('message', (results: WorkerJobResult[]) => {
         for (let i = 0; i < results.length; i++) {
           const { num, err, result } = results[i];
-          const { resolve, reject } = this.#callbacks[num] as PromiseCallback;
-
-          // Resolve or reject the original promise.
-          err ? reject(err) : resolve(result);
-
-          // Delete the redundant callback to avoid a memory leak.
-          delete this.#callbacks[num];
+          this.#events.emit(num, err, result);
         }
 
         // Mark this worker as being inactive.
@@ -231,10 +215,11 @@ export class WorkerPool {
       }
 
       // Get a new job number.
-      const num = this.#seq();
+      const num = this.#seq().toString();
 
-      // Save the promise callback, indexed by job number, so that it can be accessed later.
-      this.#callbacks[num] = { resolve, reject };
+      this.#events.once(num, (err, result) => {
+        err ? reject(err) : resolve(result);
+      });
 
       // Add the new job to the queue.
       this.#queue.push({ num, name, args });
@@ -261,15 +246,13 @@ export class WorkerPool {
           clearTimeout(worker[timeoutSymbol]);
         }
 
-        // Perform a final cleanup by removing pending tasks from the queue and rejecting any remaining callbacks.
+        // Perform a final cleanup by removing pending tasks from the queue and rejecting any remaining promises.
 
         this.#queue.splice(0);
 
-        for (const num in this.#callbacks) {
-          const { reject } = this.#callbacks[num];
+        for (const num of this.#events.eventNames()) {
           const err = Error('The worker pool was destroyed before the task could complete.');
-          reject(err);
-          delete this.#callbacks[num];
+          this.#events.emit(num, err);
         }
 
         this.#destroyed = true;
