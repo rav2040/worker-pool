@@ -30,6 +30,7 @@ type PromiseCallback = {
   reject: (err: Error) => void,
 }
 
+const MIN_NUM_WORKERS = 1;
 const DEFAULT_DESTROYED = false;
 
 const defaultNumWorkers = cpus().length - 1;
@@ -60,9 +61,9 @@ export class WorkerPool {
   readonly #maxJobsPerWorker: number;       // The max number of jobs a worker will take from the queue.
   readonly #seq: () => number;              // Returns a self-incrementing value.
 
-  readonly #workers: WorkerPoolWorker[] = [];                    // An array of workers.
-  readonly #queue: WorkerJob[] = [];                             // A 'first-in, first-out' job queue.
-  readonly #callbacks: Map<number, PromiseCallback> = new Map(); // Task callbacks indexed by job number.
+  readonly #workers: WorkerPoolWorker[] = [];                   // An array of workers.
+  readonly #queue: WorkerJob[] = [];                            // A 'first-in, first-out' job queue.
+  readonly #callbacks: { [key: number]: PromiseCallback } = {}; // Task callbacks indexed by job number.
 
   /**
    * Returns the 'destroyed' status of the worker pool.
@@ -103,7 +104,13 @@ export class WorkerPool {
    * Returns the current number of active tasks.
    */
   get activeTasks() {
-    return this.#callbacks.size - this.#queue.length;
+    let n = -this.#queue.length;
+
+    for (const _ in this.#callbacks) {
+      n++;
+    }
+
+    return n;
   }
 
   /**
@@ -138,6 +145,10 @@ export class WorkerPool {
     this.#maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobsPerWorker;
     this.#seq = createRepeatingSequence(this.#maxQueueSize);
 
+    if (this.#numWorkers < MIN_NUM_WORKERS) {
+      this.#numWorkers = MIN_NUM_WORKERS;
+    }
+
     for (let i = 0; i < this.#numWorkers; i++) {
       const worker = new WorkerPoolWorker(filename);
 
@@ -163,13 +174,13 @@ export class WorkerPool {
        worker.on('message', (results: WorkerJobResult[]) => {
         for (let i = 0; i < results.length; i++) {
           const { num, err, result } = results[i];
-          const { resolve, reject } = this.#callbacks.get(num) as PromiseCallback;
+          const { resolve, reject } = this.#callbacks[num] as PromiseCallback;
 
           // Resolve or reject the original promise.
           err ? reject(err) : resolve(result);
 
           // Delete the redundant callback to avoid a memory leak.
-          this.#callbacks.delete(num);
+          delete this.#callbacks[num];
         }
 
         // Mark this worker as being inactive.
@@ -223,7 +234,7 @@ export class WorkerPool {
       const num = this.#seq();
 
       // Save the promise callback, indexed by job number, so that it can be accessed later.
-      this.#callbacks.set(num, { resolve, reject });
+      this.#callbacks[num] = { resolve, reject };
 
       // Add the new job to the queue.
       this.#queue.push({ num, name, args });
@@ -254,10 +265,11 @@ export class WorkerPool {
 
         this.#queue.splice(0);
 
-        for (const [num, { reject }] of this.#callbacks) {
+        for (const num in this.#callbacks) {
+          const { reject } = this.#callbacks[num];
           const err = Error('The worker pool was destroyed before the task could complete.');
           reject(err);
-          this.#callbacks.delete(num);
+          delete this.#callbacks[num];
         }
 
         this.#destroyed = true;
