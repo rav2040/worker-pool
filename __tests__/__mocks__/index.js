@@ -1,5 +1,6 @@
 const { createTask } = require('./worker-script');
 
+createTask('test', () => {});
 createTask('add', (a, b) => a + b);
 createTask('add_async', async (a, b) => a + b);
 

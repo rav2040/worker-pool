@@ -1,17 +1,12 @@
 import { createTask } from '../src';
 
-describe('Creating a task with the name \'add\'', () => {
-  const TASK_NAME = 'add';
+const TASK_NAME = 'foo';
 
-  function add(a: number, b: number) {
-    return a + b;
-  }
+test('Creating a task named \'foo\' does not throw an error', () => {
+  expect(() => createTask(TASK_NAME, () => {})).not.toThrow();
+});
 
-  test('does not throw an error', () => {
-    expect(() => createTask(TASK_NAME, add)).not.toThrowError();
-  });
-
-  test('a second time throws an error', () => {
-    expect(() => createTask(TASK_NAME, add)).toThrow(`A task with the name '${TASK_NAME}' already exists.`);
-  });
+test('Creating two tasks named \'foo\' throws an error on the second attempt', () => {
+  const message = `A task with the name '${TASK_NAME}' already exists.`;
+  expect(() => createTask(TASK_NAME, () => {})).toThrow(message);
 });
