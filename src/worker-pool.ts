@@ -172,7 +172,7 @@ export class WorkerPool {
           this.#callbacks.delete(num);
         }
 
-        // Mark this worker as being active.
+        // Mark this worker as being inactive.
         worker[activeSymbol] = WorkerStatus.Inactive;
 
         // All results have been processed, so start accepting more jobs.

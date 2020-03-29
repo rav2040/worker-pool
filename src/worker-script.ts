@@ -20,7 +20,7 @@ export function createTask(name: string, callback: TaskCallback): void {
 
 // Code coverage doesn't work for the following code because it doesn't run in the main thread, so it is ignored.
 
-/* istanbul ignore next */
+/* istanbul ignore if */
 if (!isMainThread) {
   // This is a worker thread.
   const port = parentPort as MessagePort;
