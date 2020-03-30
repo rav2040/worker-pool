@@ -6,7 +6,7 @@
 
 Use a pool of Node.js worker threads to perform computationally expensive operations.
 
-A worker pool consists of an array of dedicated workers that perform user-defined tasks. Tasks submitted to the worker pool are added to a queue, and the workers take it in turns to take jobs from the queue. By default, jobs are batched together. Once a worker has finished processing all jobs in a particualar batch, the results are sent back to the main thread.  
+A worker pool consists of an array of dedicated workers that perform user-defined tasks. Tasks submitted to the worker pool are added to a queue, and the workers take it in turns to take jobs from the queue. By default, jobs are batched together. Once a worker has finished processing all jobs in a particular batch, the results are sent back to the main thread.  
 
 ## Installation
 
@@ -19,7 +19,7 @@ npm i @tuft/worker-pool
 ```js
 // my-script.js
 
-const { createTask } = require('@tuft/workerpool');
+const { createTask } = require('@tuft/worker-pool');
 const { randomBytes } = require('crypto');
 
 createTask('generate random hex string', (size) => {
@@ -30,7 +30,7 @@ createTask('generate random hex string', (size) => {
 ```js
 // index.js
 
-const { WorkerPool } = require('@tuft/workerpool');
+const { WorkerPool } = require('@tuft/worker-pool');
 
 const pool = new WorkerPool(__dirname + '/my-script.js');
 
