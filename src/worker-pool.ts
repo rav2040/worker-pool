@@ -265,3 +265,7 @@ export class WorkerPool {
     });
   }
 }
+
+export function createWorkerPool(filename: string, options?: WorkerPoolOptions) {
+  return new WorkerPool(filename, options);
+}
