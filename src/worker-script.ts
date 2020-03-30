@@ -11,6 +11,14 @@ const tasks: Map<string, TaskCallback> = new Map();
  */
 
 export function createTask(name: string, callback: TaskCallback): void {
+  if (typeof name !== 'string') {
+    throw TypeError('The first argument must be a string.');
+  }
+
+  if (typeof callback !== 'function') {
+    throw TypeError('The second argument must be a function.');
+  }
+
   if (tasks.has(name)) {
     throw Error(`A task with the name '${name}' already exists.`);
   }
