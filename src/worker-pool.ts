@@ -195,8 +195,8 @@ export class WorkerPool {
   }
 
   /**
-   * Executes the provided task name. All arguments after the first are passed on to the worker. Returns
-   * a promise, which either resolves to the result of executed task, or rejects with an Error.
+   * Executes a task based on the provided task name. All arguments after the first are passed on to the worker. Returns
+   * a promise, which either resolves to the result of the executed task, or rejects with an Error.
    */
 
   exec(name: string, ...args: any[]) {
