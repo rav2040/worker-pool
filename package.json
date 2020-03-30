@@ -1,6 +1,6 @@
 {
   "name": "@tuft/worker-pool",
-  "version": "1.0.0-alpha.5",
+  "version": "1.0.0-alpha.6",
   "description": "Create and manage a pool of workers in Node.js using worker threads.",
   "author": "Stuart Kennedy",
   "license": "MIT",
