@@ -14,3 +14,12 @@ describe(`Creating a second task named '${TASK_NAME}'`, () => {
     expect(() => createTask(TASK_NAME, () => {})).toThrow(expectedMessage);
   });
 });
+
+describe(`Creating a task with incorrect argument types`, () => {
+  test(`throws an error`, () => {
+    //@ts-ignore
+    expect(() => createTask(42, () => {})).toThrow('The first argument must be a string.');
+    //@ts-ignore
+    expect(() => createTask(TASK_NAME, 42)).toThrow('The second argument must be a function.');
+  });
+});
