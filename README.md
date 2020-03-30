@@ -6,7 +6,7 @@
 
 Use a pool of Node.js worker threads to perform computationally expensive operations.
 
-A worker pool consists of an array of dedicated workers that perform user-defined tasks. Tasks submitted to the worker pool are added to a queue, and the workers take it in turns to take jobs from the queue. By default, jobs are batched together. Once a worker has finished processing all jobs in a particular batch, the results are sent back to the main thread.  
+A worker pool consists of an array of dedicated workers that perform user-defined tasks. Tasks submitted to the worker pool are added to a queue, and the workers take it in turns to take jobs from the queue. By default, jobs are batched together. Once a worker has finished processing all jobs in a particular batch, the results are sent back to the main thread. As advised in the official Worker Threads [documentation](https://nodejs.org/dist/latest-v12.x/docs/api/worker_threads.html), worker threads should only be used for offloading CPU-intensve operations from the main thread. Otherwise, the overhead of passing data back and forth between the main thread and workers will exceed any benefit.
 
 ## Installation
 
@@ -79,11 +79,7 @@ createTask('cube', (num) => {
 
 ### new WorkerPool(*filename* [, *options*])
 
-Creates a pool of workers which are capable of performing tasks created by `createTask()`. Workers are implemented using the Node.js `Worker` class. 
-
->For more information about how worker threads work in Node, see the [official documentation](https://nodejs.org/dist/latest-v12.x/docs/api/worker_threads.html).
-
-`WorkerPool` loads a script, which each worker in the pool will execute when they are first loaded. The code in this script will only be executed in worker threads, never in the main thread.
+Creates a pool of workers which are capable of performing tasks created by `createTask()`. Workers are implemented using the Node.js `Worker` class. `WorkerPool` loads a script, which each worker in the pool will execute when they are first loaded. The code in this script will only be executed in worker threads, never in the main thread.
 
 #### Parameters
 
