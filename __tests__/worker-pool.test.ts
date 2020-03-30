@@ -1,5 +1,6 @@
 import { cpus } from 'os';
-import { WorkerPool } from '../src';
+import { createWorkerPool } from '../src';
+import { WorkerPool } from '../src/worker-pool';
 
 const SCRIPT_PATH = './__tests__/__mocks__/index.js';
 const numCpus = cpus().length;
@@ -13,7 +14,7 @@ function sleep(ms: number) {
 describe('Creating a worker pool', () => {
   describe('with default options', () => {
     test('returns an instance of WorkerPool with expected values', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       expect(pool).toBeInstanceOf(WorkerPool);
       expect(pool.destroyed).toBe(false);
@@ -37,7 +38,7 @@ describe('Creating a worker pool', () => {
         maxJobsPerWorker: MAX_JOBS_PER_WORKER,
       };
 
-      const pool = new WorkerPool(SCRIPT_PATH, options);
+      const pool = createWorkerPool(SCRIPT_PATH, options);
 
       expect(pool).toBeInstanceOf(WorkerPool);
       expect(pool.destroyed).toBe(false);
@@ -51,7 +52,7 @@ describe('Creating a worker pool', () => {
 
   describe('with option \'numWorkers\' set to 0', () => {
     test('returns an instance of WorkerPool with numWorkers equal to 1', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 0 });
+      const pool = createWorkerPool(SCRIPT_PATH, { numWorkers: 0 });
 
       expect(pool.numWorkers).toBe(1);
 
@@ -62,7 +63,7 @@ describe('Creating a worker pool', () => {
 
 describe('Calling getStats() ', () => {
   test('returns an object with the expected values', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH);
+    const pool = createWorkerPool(SCRIPT_PATH);
 
     const expectedResult = {
       activeTasks: pool.activeTasks,
@@ -80,7 +81,7 @@ describe('Calling getStats() ', () => {
 describe('Calling exec()', () => {
   describe('with arguments: \'add\', 4, 2', () => {
     test('returns 6', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       await expect(pool.exec('add', 4, 2)).resolves.toBe(6);
 
@@ -90,7 +91,7 @@ describe('Calling exec()', () => {
 
   describe('with arguments: \'add_async\', 4, 2', () => {
     test('returns 6', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       await expect(pool.exec('add_async', 4, 2)).resolves.toBe(6);
 
@@ -100,7 +101,7 @@ describe('Calling exec()', () => {
 
   describe('with argument: \'throw_error\'', () => {
     test('throws an error', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       await expect(pool.exec('throw_error')).rejects.toThrow('This is a test error.');
 
@@ -110,7 +111,7 @@ describe('Calling exec()', () => {
 
   describe('with argument: \'does_not_exist\'', () => {
     test('throws an error', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       await expect(pool.exec('does_not_exist'))
         .rejects.toThrow('A task with the name \'does_not_exist\' was not found.');
@@ -122,7 +123,7 @@ describe('Calling exec()', () => {
   describe('10 times when \'maxQueueSize\' equals 10', () => {
     test('does not throw an error', async () => {
       const maxQueueSize = 10;
-      const pool = new WorkerPool(SCRIPT_PATH, { maxQueueSize });
+      const pool = createWorkerPool(SCRIPT_PATH, { maxQueueSize });
 
       const promises = [];
 
@@ -140,7 +141,7 @@ describe('Calling exec()', () => {
   describe('11 times when \'maxQueueSize\' equals 10', () => {
     test('throws an error', async () => {
       const maxQueueSize = 10;
-      const pool = new WorkerPool(SCRIPT_PATH, { maxQueueSize });
+      const pool = createWorkerPool(SCRIPT_PATH, { maxQueueSize });
 
       const promises = [];
 
@@ -157,7 +158,7 @@ describe('Calling exec()', () => {
 
   describe('after the worker pool has been destroyed', () => {
     test('throws an error', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       await pool.destroy();
       await expect(pool.exec('add', 4, 2)).rejects.toThrow('The worker pool has been destroyed.');
@@ -166,7 +167,7 @@ describe('Calling exec()', () => {
 
   describe('when destroy() is called before it can resolve', () => {
     test('throws an error', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH);
+      const pool = createWorkerPool(SCRIPT_PATH);
 
       const promise = pool.exec('test');
       await pool.destroy();
@@ -177,7 +178,7 @@ describe('Calling exec()', () => {
 
 describe('Calling destroy() once', () => {
   test('sets the \'destroyed\' property to true and does not throw an error', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH);
+    const pool = createWorkerPool(SCRIPT_PATH);
 
     await expect(pool.destroy()).resolves.not.toThrow();
     expect(pool.destroyed).toBe(true);
@@ -186,7 +187,7 @@ describe('Calling destroy() once', () => {
 
 describe('Calling destroy() twice', () => {
   test('does not throw an error', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH);
+    const pool = createWorkerPool(SCRIPT_PATH);
 
     await expect(pool.destroy()).resolves.not.toThrow();
     await expect(pool.destroy()).resolves.not.toThrow();
@@ -196,7 +197,7 @@ describe('Calling destroy() twice', () => {
 describe('When \'numWorkers\' is set to 2 and', () => {
   describe('exec() is not called', () => {
     test('\'numActiveWorkers\' equals 0 and \'numIdleWorkers\' equals 2', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 2 });
+      const pool = createWorkerPool(SCRIPT_PATH, { numWorkers: 2 });
 
       expect(pool.numActiveWorkers).toBe(0);
       expect(pool.numIdleWorkers).toBe(2);
@@ -207,7 +208,7 @@ describe('When \'numWorkers\' is set to 2 and', () => {
 
   describe('exec() is called once', () => {
     test('\'numActiveWorkers\' equals 1 and \'numIdleWorkers\' equals 1', async () => {
-      const pool = new WorkerPool(SCRIPT_PATH, { numWorkers: 2 });
+      const pool = createWorkerPool(SCRIPT_PATH, { numWorkers: 2 });
 
       const promise = pool.exec('sleep10ms');
       await sleep(5);
@@ -223,7 +224,7 @@ describe('When \'numWorkers\' is set to 2 and', () => {
 
 describe('After calling exec() once', () => {
   test('\'pendingTasks\' equals 1 and \'activeTasks\' equals 0 ', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH);
+    const pool = createWorkerPool(SCRIPT_PATH);
 
     const promise = pool.exec('sleep10ms');
     expect(pool.pendingTasks).toBe(1);
@@ -236,7 +237,7 @@ describe('After calling exec() once', () => {
 
 describe('After calling exec() once and sleeping for 0ms', () => {
   test('\'pendingTasks\' equals 0 and \'activeTasks\' equals 1 ', async () => {
-    const pool = new WorkerPool(SCRIPT_PATH);
+    const pool = createWorkerPool(SCRIPT_PATH);
 
     const promise = pool.exec('sleep10ms');
     await sleep(0);
