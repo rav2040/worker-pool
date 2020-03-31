@@ -31,7 +31,7 @@ const DEFAULT_DESTROYED = false;
 
 const defaultNumWorkers = cpus().length - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
-const defaultMaxJobsPerWorker = Number.MAX_SAFE_INTEGER;
+const defaultMaxJobsPerWorker = 100;
 
 const activeSymbol = Symbol('WorkerPoolWorker property: active');
 const timeoutSymbol = Symbol('WorkerPoolWorker property: timeout');
