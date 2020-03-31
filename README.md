@@ -4,45 +4,47 @@
 [![Coverage Status](https://coveralls.io/repos/github/tuftjs/worker-pool/badge.svg?branch=master)](https://coveralls.io/github/tuftjs/worker-pool?branch=master)
 [![Known Vulnerabilities](https://snyk.io/test/github/tuftjs/worker-pool/badge.svg?targetFile=package.json)](https://snyk.io/test/github/rav2040/rollup-plugin-scrub?targetFile=package.json)
 
-Use a pool of Node.js worker threads to perform computationally expensive operations.
+Use a pool of Node.js `worker_threads` to perform computationally expensive operations.
 
-A worker pool consists of an array of dedicated workers that perform user-defined tasks. Tasks submitted to the worker pool are added to a queue, and the workers take it in turns to take jobs from the queue. By default, jobs are batched together. Once a worker has finished processing all jobs in a particular batch, the results are sent back to the main thread.
+A worker pool consists of an array of dedicated workers that perform user-defined tasks. By offloading CPU-intensive tasks to worker threads, they are prevented from [blocking the event loop](https://nodejs.org/en/docs/guides/dont-block-the-event-loop/).
 
-As advised in the official Worker Threads [documentation](https://nodejs.org/dist/latest-v12.x/docs/api/worker_threads.html), worker threads should only be used for offloading CPU-intensve operations from the main thread. Otherwise, the overhead of passing data back and forth between the main thread and workers will exceed any benefit.
+**Tuft Worker Pool** implements a batched queue system. When a task is executed, it is added to a job queue. When a worker is ready to process jobs, it takes the pending jobs from the queue (up to a customizable limit) and processes them together. Once they have all completed, the results are sent back to the main thread. The advantage of this approach is that some of the overhead cost involved in passing data to the worker thread and back is reduced. However, it also means that some tasks may not necessarily be processed in the order they were submitted. If a particular task takes a long time to complete, all other tasks in the same batch will have to wait along with it. Therefore, **Tuft Worker Pool** allows you to customize the maximum number of tasks that can be batched together. If you have a combination of both long and short running tasks, it may be best to utilize a separate worker pool for each.
 
-### Installation
+## Installation
 
 ```sh
 npm install @tuft/worker-pool
 ```
 
-### Usage
+## Usage
 
-First, create the script that will be loaded by the worker pool. Import the `createTask()` function and pass it a task name and a callback function. In this contrived example, we're generating a string of random bytes of `size` length.
+First, create the script that will be loaded by the worker pool. Import the `createTask()` function and pass it a task name and a callback function. Here we're using the classic example of calculating the *nth* digit in the fibonacci sequence.
 
 ```js
 // my-script.js
 
 const { createTask } = require('@tuft/worker-pool');
-const { randomBytes } = require('crypto');
 
-createTask('random bytes', (size) => {
-  return randomBytes(size);
-});
+function fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 1) + fib(n - 2); 
+}
+
+createTask('fibonacci', fib);
 ```
 
-Then, in your main application, import the `WorkerPool` class and create a new instance, passing the pathname of your script as the first argument. You will then be able to execute the task from your script by calling `pool.exec()`, passing the name of the task (in this case, `'random bytes'`) as the first argument. The remaining arguments passed to `pool.exec()` should be the arguments your function accepts. In this example, that would be the `size` of the random bytes.
+Then, in your main application, import the `createWorkerPool()` function and call it to create a new instance of `WorkerPool`, passing the pathname of your script as the first argument. You will then be able to execute the task from your script by calling `pool.exec(taskName)`, with the remaining arguments being the ones your task function accepts. `pool.exec()` returns a promise that resolves to the result of your task.
 
 ```js
 // my-app.js
 
-const { WorkerPool } = require('@tuft/worker-pool');
+const { createWorkerPool } = require('@tuft/worker-pool');
 
-const pool = new WorkerPool(__dirname + '/my-script.js');
+const pool = createWorkerPool(__dirname + '/my-script.js');
 
 async function main() {
-  const result = await pool.exec('random bytes', 256);
-  console.log(result.toString()); // 3b0fb3156251699d1e0f32dca3ff306f43e...
+  const result = await pool.exec('fibonacci', 23);
+  console.log(result); // 28657
 
   // Don't forget to destroy the worker pool once you've finished with it.
   await pool.destroy();
@@ -50,17 +52,13 @@ async function main() {
 
 main();
 ```
-`pool.exec()` will return a promise that resolves to the result of your task. To prevent active handles from letting your application exit cleanly, you'll have to call `pool.destroy()` once you're done.
+ To prevent active handles from letting your application exit cleanly, make sure to call `pool.destroy()` once you're done.
 
 ## API
 
 ### **`createTask(name, callback)`**
 
-Adds the provided `callback` to an internal list of functions, indexed by `name`. This function should be called in a separate script file, which is then loaded by the the worker pool.
-
-#### Parameters
-* `name: string`
-* `callback: Function | AsyncFunction`
+Creates a task using the provided `callback`, indexed by `name`. This function should be called in a separate script file, which is then loaded by the the worker pool.
 
 Throws an `Error` if a task with the provided name has already been created.
 
@@ -68,40 +66,44 @@ Throws an `Error` if a task with the provided name has already been created.
 ```js
 const { createTask } = require('@tuft/worker-pool');
 
-createTask('cube', (num) => {
-  return num ** 3;
+createTask('my task', (...args) => {
+  let result;
+
+  // Perform some expensive operations.
+
+  return result;
 });
 ```
 
 ### **`createWorkerPool(filename, options?)`**
 
-Returns an instance of `WorkerPool`. Workers are implemented using the Node built-in `Worker` class. The `filename` passed as the first argument should be the absolute or relative path of a `.js` file which implements the `createTask()` function as outlined above.
-
-#### Parameters
-* `filename: string`
-* `options?: Object`
+Returns an instance of `WorkerPool`. Workers are implemented using Node's built-in `Worker` class. The `filename` passed as the first argument should be the absolute or relative path of a `.js` file which implements the `createTask()` function as outlined above.
 
 If an `options` object is provided, it can contain any of the following optional properties:
 
-* `numWorkers: number`  
-  The number of workers the worker pool will employ. Defaults to *'number of CPU cores' - 1*.
-* `maxQueueSize: number`  
-  The maximum number of pending jobs the worker pool will accept. Defaults to `Number.MAX_SAFE_INTEGER`.
-* `maxJobsPerWorker: number`  
-  The maximum number of jobs a worker will take from the queue at once. Defaults to `Number.MAX_SAFE_INTEGER`.
+* `numWorkers`  
+The number of workers the worker pool will employ. Defaults to one less than the number of available CPU cores.  
+
+* `maxQueueSize`  
+The maximum number of pending jobs the worker pool will accept. Defaults to `Number.MAX_SAFE_INTEGER`.  
+
+* `maxJobsPerWorker`  
+The maximum number of jobs a worker will take from the queue at once. Defaults to `100`.  
+
 
 ```js
-const { WorkerPool } = require('@tuft/worker-pool');
+const { createWorkerPool } = require('@tuft/worker-pool');
 
 async function main() {
-  const pool = new WorkerPool('./my-script.js', {
+  const pool = createWorkerPool('./my-script.js', {
     numWorkers: 2,
     maxQueueSize: 1000,
-    maxJobsPerWorker: 40,
+    maxJobsPerWorker: 20,
   });
 
-  const result = await pool.exec('cube', 73);
-  console.log(result); // 389017
+  const result = await pool.exec('my task', ...args);
+
+  // Do something with the result.
 
   await pool.destroy();
 }
@@ -109,35 +111,11 @@ async function main() {
 main();
 ```
 
-### **`class WorkerPool`**
-The `WorkerPool` class is not exported directly, but instead returned by the `createWorkerPool()` function. It exposes the following properties and methods:
+Calling `createWorkerPool()` will return an instance of `WorkerPool`, but the `WorkerPool` class is not exported directly.
 
-### `.destroy()`  
-Terminates all workers and removes all jobs from the queue. Tasks not yet completed are immediately canceled and rejected with an `Error`. Returns a promise that resolves once all workers have been terminated.
+An instance of `WorkerPool` exposes the following properties and methods:
 
-### `.exec(taskName, ...arguments)`  
-Executes the given task. All arguments after the first are passed on to the worker. Returns a promise which either resolves to the result of the executed task, or rejects with an `Error`.
-
-`.exec()` will throw an `Error` if any of the following occur:
-* the worker pool has been destroyed.
-* the worker pool was destroyed before the task could complete.
-* the max job queue size has been reached.
-* a task with the provided name doesn't exist.
-
-In addition, if your task function throws an error during execution, the worker thread will pass that error back to the main thread, and then `exec()` will reject with that error.
-
-### `.getStats()`  
-Returns an `Object` which contains the following worker pool statistics:
-```ts
-{
-  activeTasks: number,
-  pendingTasks: number,
-  idleWorkers: number,
-  activeWorkers: number,
-}
-```
-
-#### Properties
+### Properties
 
 * **`activeTasks: number`**  
 The number of tasks currently being processed.
@@ -162,3 +140,27 @@ The total number of workers employed by the worker pool.
 
 * **`pendingTasks: number`**  
 The number of tasks currently waiting to be processed.
+
+### Methods
+
+### `.destroy()`  
+Terminates all workers and removes all jobs from the queue. Tasks not yet completed are immediately canceled and rejected with an `Error`. Returns a promise that resolves once all workers have been terminated and the `destroyed` property has been set to `true`.
+
+### `.exec(taskName, ...arguments)`  
+Executes the given task. All arguments after the first are passed to the worker. Returns a promise which either resolves to the result of the executed task, or rejects with an error.
+
+An `Error` is thrown if any of the following occur:
+* The worker pool has been destroyed.
+* The worker pool was destroyed before the task could complete.
+* The max job queue size has been reached.
+* A task with the provided name doesn't exist.
+
+In addition, if your task function throws an error during execution, the worker will catch it and pass it back to the main thread. `exec()` will then reject with that error.
+
+### `.getStats()`  
+Returns an `Object` which contains the following `WorkerPool` properties:
+
+* `activeTasks`
+* `pendingTasks`
+* `idleWorkers`
+* `activeWorkers`
