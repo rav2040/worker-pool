@@ -20,7 +20,7 @@ describe('Creating a worker pool', () => {
       expect(pool.destroyed).toBe(false);
       expect(pool.numWorkers).toBe(numCpus - 1);
       expect(pool.maxQueueSize).toBe(Number.MAX_SAFE_INTEGER);
-      expect(pool.maxJobsPerWorker).toBe(Number.MAX_SAFE_INTEGER);
+      expect(pool.maxJobsPerWorker).toBe(100);
 
       await pool.destroy();
     });
