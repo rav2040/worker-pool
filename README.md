@@ -1,8 +1,8 @@
-# Node Thread Pool
+# Worker Pool
 
-![Node.js CI](https://github.com/rav2040/node-thread-pool/workflows/Node.js%20CI/badge.svg)
-[![Coverage Status](https://coveralls.io/repos/github/rav2040/node-thread-pool/badge.svg?branch=master)](https://coveralls.io/github/rav2040/node-thread-pool?branch=master)
-[![Known Vulnerabilities](https://snyk.io/test/github/rav2040/node-thread-pool/badge.svg?targetFile=package.json)](https://snyk.io/test/github/rav2040/node-thread-pool?targetFile=package.json)
+![Node.js CI](https://github.com/rav2040/worker-pool/workflows/Node.js%20CI/badge.svg)
+[![Coverage Status](https://coveralls.io/repos/github/rav2040/worker-pool/badge.svg?branch=master)](https://coveralls.io/github/rav2040/worker-pool?branch=master)
+[![Known Vulnerabilities](https://snyk.io/test/github/rav2040/worker-pool/badge.svg?targetFile=package.json)](https://snyk.io/test/github/rav2040/worker-pool?targetFile=package.json)
 
 Use a pool of Node.js `worker_threads` to perform computationally expensive operations.
 
@@ -13,7 +13,7 @@ A worker pool consists of an array of dedicated workers that perform user-define
 ## Installation
 
 ```sh
-npm install node-thread-pool
+npm install @rav2040/worker-pool
 ```
 
 ## Usage
@@ -23,7 +23,7 @@ First, create the script that will be loaded by the worker pool. Import the `cre
 ```js
 // my-script.js
 
-const { createTask } = require('node-thread-pool');
+const { createTask } = require('@rav2040/worker-pool');
 
 function fib(n) {
   if (n <= 1) return n;
@@ -38,7 +38,7 @@ Then, in your main application, import the `createWorkerPool()` function and cal
 ```js
 // my-app.js
 
-const { createWorkerPool } = require('node-thread-pool');
+const { createWorkerPool } = require('@rav2040/worker-pool');
 
 const pool = createWorkerPool(__dirname + '/my-script.js');
 
@@ -64,7 +64,7 @@ Throws an `Error` if a task with the provided name has already been created.
 
 
 ```js
-const { createTask } = require('node-thread-pool');
+const { createTask } = require('@rav2040/worker-pool');
 
 createTask('my task', (...args) => {
   let result;
@@ -92,7 +92,7 @@ The maximum number of jobs a worker will take from the queue at once. Defaults t
 
 
 ```js
-const { createWorkerPool } = require('node-thread-pool');
+const { createWorkerPool } = require('@rav2040/worker-pool');
 
 async function main() {
   const pool = createWorkerPool('./my-script.js', {

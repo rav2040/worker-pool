@@ -1,23 +1,21 @@
 {
-  "name": "node-thread-pool",
+  "name": "@rav2040/worker-pool",
   "version": "1.0.0",
   "description": "Create and manage a pool of workers in Node.js using worker threads.",
   "author": "Stuart Kennedy",
   "license": "MIT",
-  "homepage": "https://github.com/rav2040/node-thread-pool",
+  "homepage": "https://github.com/rav2040/worker-pool",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rav2040/node-thread-pool.git"
+    "url": "git+https://github.com/rav2040/worker-pool.git"
   },
   "bugs": {
-    "url": "https://github.com/rav2040/node-thread-pool/issues"
+    "url": "https://github.com/rav2040/worker-pool/issues"
   },
   "keywords": [
     "node",
     "worker",
     "workers",
-    "thread",
-    "threads",
     "pool"
   ],
   "main": "lib/index.js",
