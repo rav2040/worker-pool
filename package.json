@@ -1,22 +1,23 @@
 {
-  "name": "@tuft/worker-pool",
-  "version": "1.0.0-alpha.7",
+  "name": "node-thread-pool",
+  "version": "1.0.0",
   "description": "Create and manage a pool of workers in Node.js using worker threads.",
   "author": "Stuart Kennedy",
   "license": "MIT",
-  "homepage": "https://github.com/tuftjs/worker-pool",
+  "homepage": "https://github.com/rav2040/node-thread-pool",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuftjs/worker-pool.git"
+    "url": "git+https://github.com/rav2040/node-thread-pool.git"
   },
   "bugs": {
-    "url": "https://github.com/tuftjs/worker-pool/issues"
+    "url": "https://github.com/rav2040/node-thread-pool/issues"
   },
   "keywords": [
-    "tuft",
-    "tuftjs",
-    "workers",
+    "node",
     "worker",
+    "workers",
+    "thread",
+    "threads",
     "pool"
   ],
   "main": "lib/index.js",
@@ -28,13 +29,13 @@
     "build": "rm -rf ./lib && tsc -b"
   },
   "devDependencies": {
-    "@types/jest": "^25.1.4",
-    "@types/node": "^13.9.5",
-    "@typescript-eslint/eslint-plugin": "^2.25.0",
-    "@typescript-eslint/parser": "^2.25.0",
+    "@types/jest": "^25.2.1",
+    "@types/node": "^13.13.2",
+    "@typescript-eslint/eslint-plugin": "^2.29.0",
+    "@typescript-eslint/parser": "^2.29.0",
     "eslint": "^6.8.0",
-    "jest": "^25.2.3",
-    "ts-jest": "^25.2.1",
+    "jest": "^25.4.0",
+    "ts-jest": "^25.4.0",
     "typescript": "^3.8.3"
   }
 }
