@@ -1,8 +1,8 @@
-# TuftJS: Worker Pool
+# Node Thread Pool
 
-![Node.js CI](https://github.com/tuftjs/worker-pool/workflows/Node.js%20CI/badge.svg)
-[![Coverage Status](https://coveralls.io/repos/github/tuftjs/worker-pool/badge.svg?branch=master)](https://coveralls.io/github/tuftjs/worker-pool?branch=master)
-[![Known Vulnerabilities](https://snyk.io/test/github/tuftjs/worker-pool/badge.svg?targetFile=package.json)](https://snyk.io/test/github/tuftjs/worker-pool?targetFile=package.json)
+![Node.js CI](https://github.com/rav2040/node-thread-pool/workflows/Node.js%20CI/badge.svg)
+[![Coverage Status](https://coveralls.io/repos/github/rav2040/node-thread-pool/badge.svg?branch=master)](https://coveralls.io/github/rav2040/node-thread-pool?branch=master)
+[![Known Vulnerabilities](https://snyk.io/test/github/rav2040/node-thread-pool/badge.svg?targetFile=package.json)](https://snyk.io/test/github/rav2040/node-thread-pool?targetFile=package.json)
 
 Use a pool of Node.js `worker_threads` to perform computationally expensive operations.
 
@@ -13,7 +13,7 @@ A worker pool consists of an array of dedicated workers that perform user-define
 ## Installation
 
 ```sh
-npm install @tuft/worker-pool
+npm install node-thread-pool
 ```
 
 ## Usage
