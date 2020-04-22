@@ -2,7 +2,7 @@ import { cpus } from 'os';
 import { createWorkerPool } from '../src';
 import { WorkerPool } from '../src/worker-pool';
 
-const SCRIPT_PATH = './__tests__/__mocks__/index.js';
+const SCRIPT_PATH = './tests/mocks/index.js';
 const numCpus = cpus().length;
 
 function sleep(ms: number) {
