@@ -23,7 +23,7 @@ First, create the script that will be loaded by the worker pool. Import the `cre
 ```js
 // my-script.js
 
-const { createTask } = require('@tuft/worker-pool');
+const { createTask } = require('node-thread-pool');
 
 function fib(n) {
   if (n <= 1) return n;
@@ -38,7 +38,7 @@ Then, in your main application, import the `createWorkerPool()` function and cal
 ```js
 // my-app.js
 
-const { createWorkerPool } = require('@tuft/worker-pool');
+const { createWorkerPool } = require('node-thread-pool');
 
 const pool = createWorkerPool(__dirname + '/my-script.js');
 
@@ -64,7 +64,7 @@ Throws an `Error` if a task with the provided name has already been created.
 
 
 ```js
-const { createTask } = require('@tuft/worker-pool');
+const { createTask } = require('node-thread-pool');
 
 createTask('my task', (...args) => {
   let result;
@@ -92,7 +92,7 @@ The maximum number of jobs a worker will take from the queue at once. Defaults t
 
 
 ```js
-const { createWorkerPool } = require('@tuft/worker-pool');
+const { createWorkerPool } = require('node-thread-pool');
 
 async function main() {
   const pool = createWorkerPool('./my-script.js', {
