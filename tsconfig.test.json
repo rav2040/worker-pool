@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2019",
     "module": "CommonJS",
-    "outDir": "__tests__/__mocks__",
+    "outDir": "tests/mocks",
     "strict": true,
     "strictNullChecks": true
   },
