@@ -27,11 +27,13 @@ type WorkerJobResult = {
 }
 
 const MIN_NUM_WORKERS = 1;
+
 const DEFAULT_DESTROYED = false;
+const DEFAULT_MAX_JOBS_PER_WORKER = 100;
 
 const defaultNumWorkers = cpus().length - 1;
 const defaultMaxQueueSize = Number.MAX_SAFE_INTEGER;
-const defaultMaxJobsPerWorker = 100;
+
 
 const activeSymbol = Symbol('WorkerPoolWorker property: active');
 const timeoutSymbol = Symbol('WorkerPoolWorker property: timeout');
@@ -132,7 +134,7 @@ export class WorkerPool {
   constructor(filename: string, options: WorkerPoolOptions = {}) {
     this.#numWorkers = options.numWorkers ?? defaultNumWorkers;
     this.#maxQueueSize = options.maxQueueSize ?? defaultMaxQueueSize;
-    this.#maxJobsPerWorker = options.maxJobsPerWorker ?? defaultMaxJobsPerWorker;
+    this.#maxJobsPerWorker = options.maxJobsPerWorker ?? DEFAULT_MAX_JOBS_PER_WORKER;
     this.#seq = createRepeatingSequence(this.#maxQueueSize);
 
     if (this.#numWorkers < MIN_NUM_WORKERS) {
@@ -162,7 +164,7 @@ export class WorkerPool {
       // Start watching the queue for pending jobs.
       worker[timeoutSymbol] = setTimeout(processJobs, 0);
 
-       worker.on('message', (results: WorkerJobResult[]) => {
+      worker.on('message', (results: WorkerJobResult[]) => {
         // Emit an event for each completed job, passing the corresponding results.
         for (let i = 0; i < results.length; i++) {
           const { num, err, result } = results[i];
