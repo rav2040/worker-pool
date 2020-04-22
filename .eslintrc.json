@@ -19,6 +19,11 @@
   "plugins": [
     "@typescript-eslint"
   ],
+  "ignorePatterns": [
+    "node_modules/",
+    "lib/",
+    "coverage/"
+  ],
   "rules": {
     "no-unused-vars": "off",
     "require-atomic-updates": "off",
